@@ -1,0 +1,7 @@
+{
+  "name": "@t3code/plugin-bob",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "bun test", "typecheck": "bunx tsc --noEmit" }
+}
