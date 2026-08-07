@@ -13,12 +13,18 @@
       { "id": "bob.workspace", "title": "Bob planning", "surface": "project" },
       { "id": "bob.runs", "title": "Bob runs", "surface": "thread.sidePanel" }
     ],
+    "settings": [
+      { "id": "bob.linear-endpoint", "title": "Linear-compatible endpoint", "scope": "server", "field": { "kind": "text", "default": "https://api.linear.app", "placeholder": "https://kanbanger.example/graphql" } },
+      { "id": "bob.linear-token", "title": "Linear-compatible API token", "scope": "server", "field": { "kind": "text", "secret": true } },
+      { "id": "bob.linear-workspace", "title": "Linear-compatible workspace", "scope": "server", "field": { "kind": "text", "placeholder": "workspace-id" } }
+    ],
+    "settingsPanels": [{ "id": "bob.integrations", "title": "Bob integrations", "description": "Bob owns the optional Linear or KanBanger relationship and link state.", "settingIds": ["bob.linear-endpoint", "bob.linear-token", "bob.linear-workspace"] }],
     "hooks": ["project.opened", "thread.created", "thread.completed"]
   },
   "capabilities": [
     { "kind": "threads.read", "projectIds": [] },
     { "kind": "threads.dispatch", "projectIds": [] },
-    { "kind": "secrets.read", "names": ["BOB_API_KEY"] },
+    { "kind": "secrets.read", "names": ["BOB_API_KEY", "LINEAR_API_KEY"] },
     { "kind": "network.connect", "hosts": ["*"] },
     { "kind": "ui.embed", "surfaces": ["project", "thread.sidePanel"] }
   ]

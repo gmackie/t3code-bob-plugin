@@ -38,3 +38,9 @@ export type BobLinearLink = {
   linearProjectId?: string;
   updatedAt: string;
 };
+
+export type BobLinearLinkInput = {
+  bobWorkItemId: string;
+  linearIssueId: string;
+  linearProjectId?: string;
+};
