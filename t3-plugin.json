@@ -14,11 +14,14 @@
       { "id": "bob.runs", "title": "Bob runs", "surface": "thread.sidePanel" }
     ],
     "settings": [
+      { "id": "bob.api-endpoint", "title": "Bob API endpoint", "scope": "server", "field": { "kind": "text", "placeholder": "https://bob.example" } },
+      { "id": "bob.api-token", "title": "Bob API token", "scope": "server", "field": { "kind": "text", "secret": true } },
       { "id": "bob.linear-endpoint", "title": "Linear-compatible endpoint", "scope": "server", "field": { "kind": "text", "default": "https://api.linear.app", "placeholder": "https://kanbanger.example/graphql" } },
       { "id": "bob.linear-token", "title": "Linear-compatible API token", "scope": "server", "field": { "kind": "text", "secret": true } },
-      { "id": "bob.linear-workspace", "title": "Linear-compatible workspace", "scope": "server", "field": { "kind": "text", "placeholder": "workspace-id" } }
+      { "id": "bob.linear-workspace", "title": "Linear-compatible workspace", "scope": "server", "field": { "kind": "text", "placeholder": "workspace-id" } },
+      { "id": "bob.polling-seconds", "title": "Refresh interval", "scope": "server", "field": { "kind": "number", "default": 60, "min": 15, "max": 3600, "step": 15 } }
     ],
-    "settingsPanels": [{ "id": "bob.integrations", "title": "Bob integrations", "description": "Bob owns the optional Linear or KanBanger relationship and link state.", "settingIds": ["bob.linear-endpoint", "bob.linear-token", "bob.linear-workspace"] }],
+    "settingsPanels": [{ "id": "bob.integrations", "title": "Bob integrations", "description": "Bob owns Bob, Linear, and KanBanger authentication, polling, and link state.", "settingIds": ["bob.api-endpoint", "bob.api-token", "bob.linear-endpoint", "bob.linear-token", "bob.linear-workspace", "bob.polling-seconds"] }],
     "hooks": ["project.opened", "thread.created", "thread.completed"]
   },
   "capabilities": [
