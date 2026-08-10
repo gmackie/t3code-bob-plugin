@@ -80,6 +80,11 @@ export function createBobRpcHandler(client: BobPlanningClient, workspaceId: stri
   };
 }
 
+export async function createBobRpcHandlerWithState(client: BobPlanningClient, workspaceId: string, state: Pick<BobStateStore, "getWorkflowState" | "saveWorkflowState">): Promise<ReturnType<typeof createBobRpcHandler>> {
+  const workflowState = await state.getWorkflowState("bob.planning-review");
+  return createBobRpcHandler(client, workspaceId, state as BobStateStore, workflowState, () => state.saveWorkflowState("bob.planning-review", workflowState));
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }

@@ -1,5 +1,7 @@
 import type { BobLinearLink, BobLinearLinkInput } from "./types.ts";
 
+export type BobWorkflowState = { approved: boolean; dispatchRequested: boolean };
+
 export type SqliteExecutor = {
   run(sql: string, params: readonly unknown[]): Promise<void>;
   get<T>(sql: string, params: readonly unknown[]): Promise<T | undefined>;
@@ -12,6 +14,10 @@ export class BobStateStore {
   async initialize(): Promise<void> {
     await this.db.run(
       "CREATE TABLE IF NOT EXISTS bob_linear_links (bob_work_item_id TEXT PRIMARY KEY, linear_issue_id TEXT NOT NULL, linear_project_id TEXT, updated_at TEXT NOT NULL)",
+      [],
+    );
+    await this.db.run(
+      "CREATE TABLE IF NOT EXISTS bob_workflow_state (workflow_id TEXT PRIMARY KEY, approved INTEGER NOT NULL, dispatch_requested INTEGER NOT NULL, updated_at TEXT NOT NULL)",
       [],
     );
   }
@@ -41,5 +47,20 @@ export class BobStateStore {
 
   async removeLinearLink(bobWorkItemId: string): Promise<void> {
     await this.db.run("DELETE FROM bob_linear_links WHERE bob_work_item_id = ?", [bobWorkItemId]);
+  }
+
+  async saveWorkflowState(workflowId: string, state: BobWorkflowState): Promise<void> {
+    await this.db.run(
+      "INSERT INTO bob_workflow_state (workflow_id, approved, dispatch_requested, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(workflow_id) DO UPDATE SET approved=excluded.approved, dispatch_requested=excluded.dispatch_requested, updated_at=excluded.updated_at",
+      [workflowId, state.approved ? 1 : 0, state.dispatchRequested ? 1 : 0, new Date().toISOString()],
+    );
+  }
+
+  async getWorkflowState(workflowId: string): Promise<BobWorkflowState> {
+    const row = await this.db.get<{ approved: number; dispatchRequested: number }>(
+      "SELECT approved, dispatch_requested AS dispatchRequested FROM bob_workflow_state WHERE workflow_id = ?",
+      [workflowId],
+    );
+    return { approved: row?.approved === 1, dispatchRequested: row?.dispatchRequested === 1 };
   }
 }

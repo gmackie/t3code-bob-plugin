@@ -34,4 +34,23 @@ describe("Bob-owned link state", () => {
     await store.removeLinearLink("bob-1");
     expect(await store.getLinearLink("bob-1")).toBeUndefined();
   });
+
+  it("persists planning workflow state for restart recovery", async () => {
+    let workflowRow: { workflowId: string; approved: number; dispatchRequested: number } | undefined;
+    const db: SqliteExecutor = {
+      async run(sql, params) {
+        if (sql.includes("bob_workflow_state") && sql.startsWith("INSERT")) {
+          workflowRow = { workflowId: String(params[0]), approved: Number(params[1]), dispatchRequested: Number(params[2]) };
+        }
+      },
+      async get(sql) {
+        return sql.includes("bob_workflow_state") ? workflowRow as never : undefined;
+      },
+      async all() { return []; },
+    };
+    const store = new BobStateStore(db);
+    await store.initialize();
+    await store.saveWorkflowState("bob.planning-review", { approved: true, dispatchRequested: true });
+    await expect(store.getWorkflowState("bob.planning-review")).resolves.toEqual({ approved: true, dispatchRequested: true });
+  });
 });
