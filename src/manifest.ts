@@ -9,6 +9,7 @@ export const manifest = {
       { id: "bob.workspace", title: "Bob planning", surface: "project" },
       { id: "bob.runs", title: "Bob runs", surface: "thread.sidePanel" },
     ],
+    workflows: [{ id: "bob.planning-review", title: "Planning review", surface: "thread.main" }],
     hooks: ["project.opened", "thread.created", "thread.completed"],
   },
   capabilities: [

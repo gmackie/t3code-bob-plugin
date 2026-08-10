@@ -7,6 +7,42 @@ export type BobPlanningClient = {
   dispatchWorkItem(input: { workItemId: string; agentType: string; executionTargetId: string }): Promise<BobRun>;
 };
 
+export type PlanningWorkflowModel = {
+  readonly pluginId: string;
+  readonly workflowId: string;
+  readonly title: string;
+  readonly currentStage: "inspect" | "context" | "propose" | "review" | "approve" | "execute" | "verify" | "respond";
+  readonly refreshedAt: string;
+  readonly steps: readonly { id: string; stage: PlanningWorkflowModel["currentStage"]; title: string; state: "pending" | "active" | "completed" | "blocked" | "failed"; detail?: string }[];
+  readonly evidence?: readonly { id: string; title: string; kind: "check" | "artifact" | "diff" | "log" | "link"; status: "neutral" | "positive" | "warning" | "negative"; detail?: string }[];
+  readonly actions?: readonly { id: string; title: string; tone?: "primary" | "secondary" | "destructive" }[];
+};
+
+export function buildPlanningWorkflow(item: WorkItem, runs: readonly RunSummary[], state: { readonly approved?: boolean; readonly dispatchRequested?: boolean } = {}): PlanningWorkflowModel {
+  const latestRun = runs[0];
+  const failed = latestRun?.status === "failed";
+  const steps = [
+    { id: "inspect", stage: "inspect" as const, title: "Inspect Bob work item", state: "completed" as const, detail: item.title },
+    { id: "context", stage: "context" as const, title: "Collect planning and run context", state: "completed" as const, detail: `${runs.length} associated runs` },
+    { id: "propose", stage: "propose" as const, title: "Propose execution target", state: "completed" as const },
+    { id: "review", stage: "review" as const, title: "Review dispatch plan", state: state.approved ? "completed" as const : "active" as const },
+    { id: "approve", stage: "approve" as const, title: "Approve Bob dispatch", state: state.approved ? "completed" as const : "pending" as const },
+    { id: "execute", stage: "execute" as const, title: "Dispatch work item", state: state.dispatchRequested ? "completed" as const : state.approved ? "active" as const : "pending" as const },
+    { id: "verify", stage: "verify" as const, title: "Verify Bob run", state: state.dispatchRequested ? latestRun?.status === "succeeded" ? "completed" as const : failed ? "failed" as const : "active" as const : "pending" as const, detail: latestRun ? `Latest run ${latestRun.id}: ${latestRun.status}` : "Waiting for dispatch" },
+    { id: "respond", stage: "respond" as const, title: "Prepare work-item response", state: "pending" as const },
+  ];
+  return {
+    pluginId: "com.t3code.bob",
+    workflowId: "bob.planning-review",
+    title: "Planning review",
+    currentStage: state.dispatchRequested ? "verify" : state.approved ? "execute" : "review",
+    refreshedAt: new Date().toISOString(),
+    steps,
+    evidence: [{ id: "bob-run", title: "Bob run state", kind: "check", status: failed ? "negative" : latestRun?.status === "succeeded" ? "positive" : "neutral", detail: latestRun ? `${latestRun.id} · ${latestRun.status}` : "No run dispatched yet" }],
+    actions: state.dispatchRequested ? [] : state.approved ? [{ id: "execute", title: "Dispatch work item", tone: "primary" }] : [{ id: "approve", title: "Approve Bob dispatch", tone: "primary" }],
+  };
+}
+
 const statusCategory = (status: string): WorkItem["status"]["category"] => {
   const value = status.toLowerCase();
   if (value.includes("done") || value.includes("complete")) return "done";

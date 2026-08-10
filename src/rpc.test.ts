@@ -22,4 +22,21 @@ describe("Bob plugin RPC boundary", () => {
       }],
     });
   });
+
+  it("approves and dispatches a Bob planning workflow through Bob", async () => {
+    let dispatched = false;
+    let saved = false;
+    const handler = createBobRpcHandler({
+      listWorkItems: async () => [{ id: "w1", title: "Ship", status: "queued" }],
+      getWorkItem: async () => ({ id: "w1", title: "Ship", status: "queued" }),
+      listRuns: async () => [],
+      dispatchWorkItem: async (input) => { dispatched = input.agentType === "codex"; return { id: "r1", workItemId: input.workItemId, status: "running" }; },
+    }, "workspace-1", undefined, { approved: false, dispatchRequested: false }, async () => { saved = true; });
+    await expect(handler({ method: "workflow.get", payload: { workflowId: "bob.planning-review", workItemId: "w1" } })).resolves.toMatchObject({ ok: true, result: { currentStage: "review" } });
+    await expect(handler({ method: "action.execute", payload: { actionId: "approve", workflowId: "bob.planning-review" } })).resolves.toMatchObject({ ok: true, result: { status: "accepted" } });
+    await expect(handler({ method: "action.execute", payload: { actionId: "execute", workflowId: "bob.planning-review", workItemId: "w1", agentType: "codex", executionTargetId: "env-1" } })).resolves.toMatchObject({ ok: true, result: { status: "accepted" } });
+    expect(dispatched).toBe(true);
+    expect(saved).toBe(true);
+    await expect(handler({ method: "workflow.get", payload: { workflowId: "bob.planning-review", workItemId: "w1" } })).resolves.toMatchObject({ result: { currentStage: "verify" } });
+  });
 });

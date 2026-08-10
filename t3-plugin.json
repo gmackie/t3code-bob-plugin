@@ -13,6 +13,9 @@
       { "id": "bob.workspace", "title": "Bob planning", "surface": "project" },
       { "id": "bob.runs", "title": "Bob runs", "surface": "thread.sidePanel" }
     ],
+    "workflows": [
+      { "id": "bob.planning-review", "title": "Planning review", "surface": "thread.main" }
+    ],
     "settings": [
       { "id": "bob.api-endpoint", "title": "Bob API endpoint", "scope": "server", "field": { "kind": "text", "placeholder": "https://bob.example" } },
       { "id": "bob.api-token", "title": "Bob API token", "scope": "server", "field": { "kind": "text", "secret": true } },

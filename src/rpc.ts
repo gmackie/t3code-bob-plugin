@@ -1,15 +1,39 @@
-import { createBobWorkSource, type BobPlanningClient } from "./planning.ts";
+import { buildPlanningWorkflow, createBobWorkSource, type BobPlanningClient } from "./planning.ts";
 import { BobStateStore } from "./state.ts";
 import { reconcileBobLinearLink } from "./links.ts";
 
 type Request = { method: string; payload: Record<string, unknown> };
 type Response = { ok: true; result: unknown } | { ok: false; error: string };
 
-export function createBobRpcHandler(client: BobPlanningClient, workspaceId: string, state?: BobStateStore) {
+export function createBobRpcHandler(client: BobPlanningClient, workspaceId: string, state?: BobStateStore, workflowState: { approved: boolean; dispatchRequested?: boolean } = { approved: false }, saveWorkflowState: () => Promise<void> = async () => undefined) {
   const source = createBobWorkSource(client, workspaceId);
   return async (request: Request): Promise<Response> => {
     try {
       switch (request.method) {
+        case "workflow.get": {
+          const workItemId = requiredString(request.payload.workItemId, "workItemId");
+          const [item, runs] = await Promise.all([source.get(workItemId), source.runs(workItemId)]);
+          return { ok: true, result: buildPlanningWorkflow(item.item, runs, workflowState) };
+        }
+        case "action.execute": {
+          if (request.payload.actionId === "approve") {
+            workflowState.approved = true;
+            await saveWorkflowState();
+            return { ok: true, result: { status: "accepted", message: "Bob dispatch approved." } };
+          }
+          if (request.payload.actionId === "execute") {
+            if (!workflowState.approved) throw new Error("Bob dispatch must be approved before execution");
+            const run = await source.dispatch({
+              workItemId: requiredString(request.payload.workItemId, "workItemId"),
+              agentType: requiredString(request.payload.agentType, "agentType"),
+              executionTargetId: requiredString(request.payload.executionTargetId, "executionTargetId"),
+            });
+            workflowState.dispatchRequested = true;
+            await saveWorkflowState();
+            return { ok: true, result: { status: "accepted", message: `Bob run ${run.id} dispatched.` } };
+          }
+          return { ok: false, error: `unsupported Bob action: ${String(request.payload.actionId)}` };
+        }
         case "workItems.list":
           return { ok: true, result: await source.list({ projectId: stringValue(request.payload.projectId) }) };
         case "workItems.get":
