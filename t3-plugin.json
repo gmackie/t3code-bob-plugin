@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "runtime": {
     "kind": "managed-app",
-    "command": ["bob-t3-plugin"],
+    "command":["bun","src/stdio.ts"],
     "restart": "on-failure"
   },
   "contributes": {
