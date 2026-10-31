@@ -17,6 +17,9 @@ export type RunSummary = {
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   workItemId?: string;
   threadId?: string;
+  agentType?: string;
+  summary?: string;
+  createdAt?: string;
 };
 
 export type BobWorkItem = {
@@ -30,7 +33,16 @@ export type BobWorkItem = {
   updatedAt?: string | null;
 };
 
-export type BobRun = { id: string; workItemId?: string | null; status: string; threadId?: string | null };
+export type BobRun = {
+  id: string;
+  workItemId?: string | null;
+  status: string;
+  threadId?: string | null;
+  sessionId?: string | null;
+  agentType?: string | null;
+  summary?: string | null;
+  createdAt?: string | null;
+};
 
 export type BobLinearLink = {
   bobWorkItemId: string;

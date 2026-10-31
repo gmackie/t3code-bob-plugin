@@ -1,37 +1,35 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "draft": "T3CODE-74 has not defined manifest v2 yet; see docs/manifest-v2.md for the fields this needs. T3 builds that only parse schemaVersion 1 cannot load this plugin.",
   "id": "com.t3code.bob",
   "displayName": "Bob",
-  "version": "0.1.0",
-  "runtime": {
-    "kind": "managed-app",
-    "command":["bun","src/stdio.ts"],
-    "restart": "on-failure"
+  "version": "0.2.0",
+  "description": "Browse Bob work items and runs, review a plan, and dispatch it to an agent after human approval.",
+  "mcpServer": {
+    "name": "bob",
+    "transport": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["${pluginDir}/src/mcp.ts"],
+      "env": [
+        { "name": "BOB_API_URL", "title": "Bob API endpoint", "required": true, "placeholder": "https://bob.example" },
+        { "name": "BOB_API_TOKEN", "title": "Bob API token", "sensitive": true, "placeholder": "bob_…" },
+        { "name": "BOB_WORKSPACE_ID", "title": "Bob workspace id", "placeholder": "workspace uuid" },
+        { "name": "LINEAR_API_URL", "title": "Linear-compatible endpoint", "value": "https://api.linear.app/graphql", "placeholder": "https://kanbanger.example/graphql" },
+        { "name": "LINEAR_API_TOKEN", "title": "Linear-compatible API token", "sensitive": true },
+        { "name": "LINEAR_WORKSPACE", "title": "Linear-compatible workspace", "placeholder": "workspace-id" },
+        { "name": "BOB_POLL_SECONDS", "title": "Refresh interval (seconds)", "value": "60", "field": { "kind": "number", "min": 15, "max": 3600, "step": 15 } },
+        { "name": "BOB_PLUGIN_STATE_PATH", "value": "${pluginDataDir}/state.sqlite", "hidden": true }
+      ]
+    }
   },
   "contributes": {
     "panels": [
-      { "id": "bob.workspace", "title": "Bob planning", "surface": "project" },
-      { "id": "bob.runs", "title": "Bob runs", "surface": "thread.sidePanel" }
-    ],
-    "workflows": [
-      { "id": "bob.planning-review", "title": "Planning review", "surface": "thread.main" }
-    ],
-    "settings": [
-      { "id": "bob.api-endpoint", "title": "Bob API endpoint", "scope": "server", "field": { "kind": "text", "placeholder": "https://bob.example" } },
-      { "id": "bob.api-token", "title": "Bob API token", "scope": "server", "field": { "kind": "text", "secret": true } },
-      { "id": "bob.linear-endpoint", "title": "Linear-compatible endpoint", "scope": "server", "field": { "kind": "text", "default": "https://api.linear.app", "placeholder": "https://kanbanger.example/graphql" } },
-      { "id": "bob.linear-token", "title": "Linear-compatible API token", "scope": "server", "field": { "kind": "text", "secret": true } },
-      { "id": "bob.linear-workspace", "title": "Linear-compatible workspace", "scope": "server", "field": { "kind": "text", "placeholder": "workspace-id" } },
-      { "id": "bob.polling-seconds", "title": "Refresh interval", "scope": "server", "field": { "kind": "number", "default": 60, "min": 15, "max": 3600, "step": 15 } }
-    ],
-    "settingsPanels": [{ "id": "bob.integrations", "title": "Bob integrations", "description": "Bob owns Bob, Linear, and KanBanger authentication, polling, and link state.", "settingIds": ["bob.api-endpoint", "bob.api-token", "bob.linear-endpoint", "bob.linear-token", "bob.linear-workspace", "bob.polling-seconds"] }],
-    "hooks": ["project.opened", "thread.created", "thread.completed"]
+      { "id": "bob.workspace", "title": "Bob planning", "surface": "project", "resourceUri": "ui://bob/workspace.html", "tool": { "name": "bob_workspace", "arguments": { "projectId": "${projectId}" } } },
+      { "id": "bob.runs", "title": "Bob runs", "surface": "thread.sidePanel", "resourceUri": "ui://bob/workspace.html", "tool": { "name": "bob_workspace" } }
+    ]
   },
-  "capabilities": [
-    { "kind": "threads.read", "projectIds": [] },
-    { "kind": "threads.dispatch", "projectIds": [] },
-    { "kind": "secrets.read", "names": ["BOB_API_KEY", "LINEAR_API_KEY"] },
-    { "kind": "network.connect", "hosts": ["*"] },
-    { "kind": "ui.embed", "surfaces": ["project", "thread.sidePanel"] }
-  ]
+  "t3Tools": {
+    "allow": []
+  }
 }

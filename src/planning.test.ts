@@ -13,7 +13,7 @@ describe("Bob plugin planning adapter", () => {
       listWorkItems: async () => [], getWorkItem: async () => ({ id: "w1", title: "Ship", status: "queued" }), listRuns: async () => [],
       dispatchWorkItem: async () => ({ id: "r1", workItemId: "w1", status: "running" }),
     }, "workspace-1");
-    await expect(source.dispatch({ workItemId: "w1", agentType: "codex", executionTargetId: "env-1" })).resolves.toMatchObject({ providerId: "bob", id: "r1" });
+    await expect(source.dispatch({ workItemId: "w1", agentType: "codex" })).resolves.toMatchObject({ providerId: "bob", id: "r1" });
   });
 
   it("builds a planning review workflow around a Bob work item", () => {

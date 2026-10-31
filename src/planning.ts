@@ -4,7 +4,8 @@ export type BobPlanningClient = {
   listWorkItems(input: { workspaceId: string; projectId?: string }): Promise<readonly BobWorkItem[]>;
   getWorkItem(input: { workItemId: string }): Promise<BobWorkItem>;
   listRuns(input: { workspaceId: string; workItemId?: string }): Promise<readonly BobRun[]>;
-  dispatchWorkItem(input: { workItemId: string; agentType: string; executionTargetId: string }): Promise<BobRun>;
+  // Bob's REST dispatch takes only agentType; Bob picks the execution target.
+  dispatchWorkItem(input: { workItemId: string; agentType?: string }): Promise<BobRun>;
 };
 
 export type PlanningWorkflowModel = {
@@ -67,12 +68,16 @@ export function normalizeBobWorkItem(item: BobWorkItem): WorkItem {
 
 export function normalizeBobRun(run: BobRun): RunSummary {
   const status = statusCategory(run.status);
+  const failed = /fail|error/i.test(run.status);
   return {
     providerId: "bob",
     id: run.id,
-    status: status === "done" ? "succeeded" : status === "cancelled" ? "cancelled" : status === "active" ? "running" : "queued",
+    status: failed ? "failed" : status === "done" ? "succeeded" : status === "cancelled" ? "cancelled" : status === "active" ? "running" : "queued",
     ...(run.workItemId ? { workItemId: run.workItemId } : {}),
     ...(run.threadId ? { threadId: run.threadId } : {}),
+    ...(run.agentType ? { agentType: run.agentType } : {}),
+    ...(run.summary ? { summary: run.summary } : {}),
+    ...(run.createdAt ? { createdAt: run.createdAt } : {}),
   };
 }
 
@@ -90,7 +95,7 @@ export function createBobWorkSource(client: BobPlanningClient, workspaceId: stri
     async runs(workItemId?: string): Promise<readonly RunSummary[]> {
       return (await client.listRuns({ workspaceId, ...(workItemId ? { workItemId } : {}) })).map(normalizeBobRun);
     },
-    async dispatch(input: { workItemId: string; agentType: string; executionTargetId: string }): Promise<RunSummary> {
+    async dispatch(input: { workItemId: string; agentType?: string }): Promise<RunSummary> {
       return normalizeBobRun(await client.dispatchWorkItem(input));
     },
   };

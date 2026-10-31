@@ -64,3 +64,20 @@ export class BobStateStore {
     return { approved: row?.approved === 1, dispatchRequested: row?.dispatchRequested === 1 };
   }
 }
+
+// Adapter for bun:sqlite, which the stdio MCP server uses for its own state file.
+export function bunSqliteExecutor(db: {
+  query(sql: string): { run(...params: never[]): unknown; get(...params: never[]): unknown; all(...params: never[]): unknown[] };
+}): SqliteExecutor {
+  return {
+    async run(sql, params) {
+      db.query(sql).run(...(params as never[]));
+    },
+    async get<T>(sql: string, params: readonly unknown[]) {
+      return (db.query(sql).get(...(params as never[])) ?? undefined) as T | undefined;
+    },
+    async all<T>(sql: string, params: readonly unknown[]) {
+      return db.query(sql).all(...(params as never[])) as T[];
+    },
+  };
+}
