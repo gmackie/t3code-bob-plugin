@@ -1,10 +1,15 @@
-import { createViewBridge, toolData, type ViewBridge } from "./bridge.ts";
+import { createViewBridge, toolData, type HostContext, type ViewBridge } from "./bridge.ts";
 import { esc, renderPlanning, type PlanningData } from "./render.ts";
 
-export function startView(name: string): ViewBridge {
+// host-context-changed may carry only the changed fields, so merge them.
+export function startView(name: string, onContext?: (context: HostContext, previous: HostContext) => void): ViewBridge {
   const bridge = createViewBridge(window as never, { name, version: "0.2.0" });
-  bridge.onHostContext = (context) => {
+  let context: HostContext = {};
+  bridge.onHostContext = (update) => {
+    const previous = context;
+    context = { ...context, ...update };
     if (context.theme) document.documentElement.dataset.theme = context.theme;
+    onContext?.(context, previous);
   };
   new ResizeObserver(() => bridge.sendSize(document.documentElement.scrollWidth, document.documentElement.scrollHeight)).observe(document.body);
   return bridge;

@@ -17,7 +17,9 @@ export type BobServerOptions = {
   pollSeconds: number;
 };
 
-// Approval is recorded per work item.
+// Approval is recorded per work item in the shared state file, not in memory:
+// T3 runs one copy of a stdio plugin per agent session plus one in its pool,
+// so a panel's approval and an agent's dispatch may hit different processes.
 export const planningWorkflowId = (workItemId: string) => `bob.planning-review:${workItemId}`;
 
 const workItemId = z.string().min(1).describe("Bob work item id");
@@ -58,7 +60,7 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
         query: z.string().optional().describe("Case-insensitive title filter"),
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
-      _meta: { ui: { resourceUri: VIEWS.workspace.uri } },
+      _meta: { ui: { resourceUri: VIEWS.workspace.uri, visibility: ["model", "app"] } },
     },
     async ({ workspaceId, projectId, query }) =>
       result(async () => {
@@ -78,7 +80,7 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
       description: "Show the planning review for a Bob work item: stages, latest run evidence and the next action. A human approves dispatch from the rendered view.",
       inputSchema: z.object({ workItemId }),
       annotations: { readOnlyHint: true, openWorldHint: true },
-      _meta: { ui: { resourceUri: VIEWS.planning.uri } },
+      _meta: { ui: { resourceUri: VIEWS.planning.uri, visibility: ["model", "app"] } },
     },
     async ({ workItemId: id }) =>
       result(async () => {
@@ -115,7 +117,7 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
       description: "Dispatch an approved Bob work item to an agent. Fails unless a human approved it in the planning review.",
       inputSchema: z.object({ workItemId, agentType: z.string().optional().describe("Agent type, e.g. claude or codex; defaults to Bob's configured agent") }),
       annotations: { openWorldHint: true },
-      _meta: { ui: { resourceUri: VIEWS.planning.uri } },
+      _meta: { ui: { resourceUri: VIEWS.planning.uri, visibility: ["model", "app"] } },
     },
     async ({ workItemId: id, agentType }) =>
       result(async () => {

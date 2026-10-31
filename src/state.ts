@@ -65,6 +65,13 @@ export class BobStateStore {
   }
 }
 
+// Opens the state file for concurrent use by several plugin processes.
+export function openStateDatabase<T extends { exec(sql: string): unknown }>(db: T): T {
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA busy_timeout = 5000");
+  return db;
+}
+
 // Adapter for bun:sqlite, which the stdio MCP server uses for its own state file.
 export function bunSqliteExecutor(db: {
   query(sql: string): { run(...params: never[]): unknown; get(...params: never[]): unknown; all(...params: never[]): unknown[] };

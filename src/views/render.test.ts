@@ -15,6 +15,24 @@ describe("view renderers", () => {
     expect(html).toContain("No runs yet.");
   });
 
+  it("limits runs to the active thread in a thread-scoped panel", () => {
+    const data = {
+      workspaceId: "ws",
+      workItems: [item],
+      runs: [
+        { providerId: "bob", id: "r1", status: "running" as const, threadId: "t1" },
+        { providerId: "bob", id: "r2", status: "queued" as const, threadId: "t2" },
+      ],
+      pollSeconds: 60,
+      refreshedAt: "2026-10-31T00:00:00Z",
+    };
+    const html = renderWorkspace(data, "", "t1");
+    expect(html).toContain("Runs in this thread");
+    expect(html).toContain("r1");
+    expect(html).not.toContain("r2");
+    expect(renderWorkspace(data, "", "t3")).toContain("No Bob runs for this thread.");
+  });
+
   it("offers approve, then dispatch, then nothing", () => {
     const approve = renderPlanning({ workItem: item, runs: [], workflow: buildPlanningWorkflow(item, []) });
     expect(approve).toContain('data-action="approve"');

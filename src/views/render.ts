@@ -48,7 +48,7 @@ const itemTone: Record<WorkItem["status"]["category"], string> = {
   cancelled: "muted",
 };
 
-export function renderWorkspace(data: WorkspaceData, filter = ""): string {
+export function renderWorkspace(data: WorkspaceData, filter = "", threadId?: string): string {
   const query = filter.trim().toLowerCase();
   const items = query ? data.workItems.filter((item) => item.title.toLowerCase().includes(query) || item.id.toLowerCase().includes(query)) : data.workItems;
   const titles = new Map(data.workItems.map((item) => [item.id, item.title]));
@@ -65,8 +65,9 @@ export function renderWorkspace(data: WorkspaceData, filter = ""): string {
         )
         .join("\n")
     : `<li class="empty">${query ? "No work items match the filter." : "No Bob work items in this workspace."}</li>`;
-  const runs = data.runs.length
-    ? data.runs
+  const scopedRuns = threadId ? data.runs.filter((run) => run.threadId === threadId) : data.runs;
+  const runs = scopedRuns.length
+    ? scopedRuns
         .slice(0, 10)
         .map(
           (run) => `<li class="row">
@@ -78,14 +79,14 @@ export function renderWorkspace(data: WorkspaceData, filter = ""): string {
 </li>`,
         )
         .join("\n")
-    : `<li class="empty">No runs yet.</li>`;
+    : `<li class="empty">${threadId ? "No Bob runs for this thread." : "No runs yet."}</li>`;
   return `<header>
   <h1>Bob workspace</h1>
   <div class="header-meta"><span>Refreshed ${esc(time(data.refreshedAt))} · every ${esc(data.pollSeconds)}s</span><button type="button" data-action="refresh">Refresh</button></div>
 </header>
 <input type="search" data-role="filter" placeholder="Filter work items" value="${esc(filter)}" aria-label="Filter work items">
 <section aria-label="Work items"><h2>Work items <span class="count">${items.length}</span></h2><ul>${rows}</ul></section>
-<section aria-label="Runs"><h2>Recent runs <span class="count">${data.runs.length}</span></h2><ul>${runs}</ul></section>
+<section aria-label="Runs"><h2>${threadId ? "Runs in this thread" : "Recent runs"} <span class="count">${scopedRuns.length}</span></h2><ul>${runs}</ul></section>
 <div data-role="review"></div>`;
 }
 

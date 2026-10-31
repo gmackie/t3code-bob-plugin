@@ -8,11 +8,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { createBobHttpClient } from "./bobClient.ts";
 import { loadConfig } from "./config.ts";
 import { createBobMcpServer } from "./server.ts";
-import { BobStateStore, bunSqliteExecutor } from "./state.ts";
+import { BobStateStore, bunSqliteExecutor, openStateDatabase } from "./state.ts";
 
 const config = loadConfig();
 mkdirSync(dirname(config.statePath), { recursive: true });
-const state = new BobStateStore(bunSqliteExecutor(new Database(config.statePath, { create: true })));
+const state = new BobStateStore(bunSqliteExecutor(openStateDatabase(new Database(config.statePath, { create: true }))));
 await state.initialize();
 
 const server = createBobMcpServer({

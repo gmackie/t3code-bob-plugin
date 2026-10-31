@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Window } from "happy-dom";
 
-import { connectedClient } from "../testing.ts";
+import { connectedClient, fakeBob } from "../testing.ts";
 
 // Runs the real workspace view module against a DOM, with this test acting as
 // the host frame and forwarding tools/call to the Bob MCP server.
@@ -72,6 +72,38 @@ describe("workspace view in a DOM", () => {
     await Bun.sleep(400);
     expect(calls).toEqual(["bob_workspace"]);
     expect(win.document.querySelectorAll("[data-action=review]")).toHaveLength(2);
+    await win.happyDOM.abort();
+  });
+
+  it("follows the active thread in a thread-scoped panel", async () => {
+    const bob = fakeBob({ listRuns: async () => [{ id: "s1", workItemId: "w1", status: "running", threadId: "thread-a" }] });
+    const { client } = await connectedClient({ client: bob.client });
+    const win = new Window({ url: "https://thread-panel.invalid/" });
+    const calls: string[] = [];
+    const deliver = (data: unknown) => win.dispatchEvent(new win.MessageEvent("message", { data, source: parent as never }));
+    const parent = {
+      async postMessage(message: { id?: number; method?: string; params?: { name: string; arguments: Record<string, unknown> } }) {
+        if (message.method === "ui/initialize") deliver({ jsonrpc: "2.0", id: message.id, result: { hostContext: { threadId: "thread-b", projectId: "p", cwd: "/repo" } } });
+        if (message.method === "tools/call") {
+          calls.push(message.params!.name);
+          deliver({ jsonrpc: "2.0", id: message.id, result: await client.callTool({ name: message.params!.name, arguments: message.params!.arguments }) });
+        }
+      },
+    };
+    Object.defineProperty(win, "parent", { value: parent });
+    win.document.body.innerHTML = `<main id="app">Loading…</main>`;
+    Object.assign(globalThis, { window: win, document: win.document, ResizeObserver: class { observe() {} } });
+
+    await import(`./workspace.client.ts?thread`);
+    await Bun.sleep(400);
+    const runs = () => win.document.querySelector("[aria-label=Runs]")!.textContent!;
+    expect(runs()).toContain("No Bob runs for this thread.");
+
+    deliver({ jsonrpc: "2.0", method: "ui/notifications/host-context-changed", params: { threadId: "thread-a" } });
+    await Bun.sleep(50);
+    expect(runs()).toContain("Runs in this thread");
+    expect(runs()).toContain("s1");
+    expect(calls).toEqual(["bob_workspace", "bob_workspace"]);
     await win.happyDOM.abort();
   });
 });

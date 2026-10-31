@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 
-import { connectedClient } from "./testing.ts";
+import { tmpdir } from "node:os";
+
+import { connectedClient, fakeBob } from "./testing.ts";
 
 type Structured<T> = { structuredContent?: T; isError?: boolean; content: { type: string; text?: string }[] };
 const call = async <T = Record<string, unknown>>(client: Awaited<ReturnType<typeof connectedClient>>["client"], name: string, args: Record<string, unknown> = {}) =>
@@ -17,6 +19,29 @@ describe("Bob MCP server", () => {
     expect(byName.get("bob_planning_review")?._meta).toMatchObject({ ui: { resourceUri: "ui://bob/planning-review.html" } });
     expect(byName.get("bob_planning_approve")?._meta).toEqual({ ui: { visibility: ["app"] } });
     expect(byName.get("bob_workspace")?.annotations?.readOnlyHint).toBe(true);
+    // T3 only lets a view call tools whose visibility includes "app".
+    for (const name of ["bob_workspace", "bob_planning_review", "bob_planning_approve", "bob_planning_dispatch"]) {
+      expect((byName.get(name)?._meta as { ui: { visibility: string[] } }).ui.visibility).toContain("app");
+    }
+  });
+
+  it("shares approval between plugin copies through the state file", async () => {
+    // T3 runs one stdio copy per agent session plus one in its pool: a panel
+    // approves in one process and the agent dispatches from another.
+    const { Database } = await import("bun:sqlite");
+    const { BobStateStore, bunSqliteExecutor, openStateDatabase } = await import("./state.ts");
+    const path = `${tmpdir()}/bob-state-${crypto.randomUUID()}.sqlite`;
+    const open = async () => {
+      const store = new BobStateStore(bunSqliteExecutor(openStateDatabase(new Database(path, { create: true }))));
+      await store.initialize();
+      return store;
+    };
+    const bob = fakeBob();
+    const pool = await connectedClient({ client: bob.client, state: await open() });
+    const session = await connectedClient({ client: bob.client, state: await open() });
+    await call(pool.client, "bob_planning_approve", { workItemId: "w1" });
+    expect((await call(session.client, "bob_planning_dispatch", { workItemId: "w1" })).isError).toBeFalsy();
+    expect(bob.dispatched).toEqual([{ workItemId: "w1" }]);
   });
 
   it("serves each view as a self-contained MCP App resource", async () => {

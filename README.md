@@ -2,7 +2,7 @@
 
 Bob is a standalone T3 Code plugin. It owns Bob credentials, planning normalization, dispatch approval state, Bob-to-Linear links, and its own persistence.
 
-The plugin is an MCP server (`src/mcp.ts`, stdio) described by a draft v2 manifest (`t3-plugin.json`, T3CODE-74). The managed-app runtime and plugin RPC were removed in T3CODE-78; T3 builds that only load v1 manifests cannot load this version.
+The plugin is an MCP server (`src/mcp.ts`, stdio) described by a v2 manifest (`t3-plugin.json`) that follows the T3CODE-74 design approved on 2026-10-31. The managed-app runtime and plugin RPC were removed in T3CODE-78; T3 builds that only load v1 manifests cannot load this version.
 
 ## MCP server
 
@@ -27,7 +27,7 @@ The plugin calls Bob's REST API (`/api/v1`, Bearer API key) directly. Bob's own 
 | `LINEAR_API_TOKEN` | `bob.linear-token` | secret |
 | `LINEAR_WORKSPACE` | `bob.linear-workspace` | |
 | `BOB_POLL_SECONDS` | `bob.polling-seconds` | 15–3600, default 60 |
-| `BOB_PLUGIN_STATE_PATH` | (new) | SQLite state, default `$XDG_STATE_HOME/t3code-bob-plugin/state.sqlite` |
+| `BOB_PLUGIN_STATE_PATH` | (new) | SQLite state, default `$XDG_STATE_HOME/t3code-bob-plugin/state.sqlite`. Every plugin process shares it; the server keeps no state in memory. |
 
 ### Run it
 
@@ -40,6 +40,8 @@ BOB_API_URL=http://localhost:4319 BOB_WORKSPACE_ID=00000000-0000-4000-8000-00000
 bun run inspect                # or the official MCP Inspector (Apps tab)
 ```
 
-To register it in T3 under Settings → Tools (T3CODE-73), add a stdio server named `bob` with command `bun`, args `/path/to/repo/src/mcp.ts`, and the env vars above, marking the tokens as sensitive. Today T3 renders MCP Apps inline only in Codex threads.
+Until T3 installs v2 plugins (T3CODE-74), you can add it by hand in Settings → Tools (T3CODE-73): a stdio server named `bob`, command `bun`, args `/path/to/repo/src/mcp.ts`, and the env vars above, with the tokens marked sensitive. Today T3 renders MCP Apps inline only in Codex threads.
 
-See `docs/manifest-v2.md` for the draft manifest and the open questions for T3CODE-74.
+The `bob.workspace` panel is project-scoped. `bob.runs` is thread-scoped: it uses `threadId` from host context and follows `host-context-changed`.
+
+See `docs/manifest-v2.md` for the manifest mapping, the server rules from the design, and the open questions.

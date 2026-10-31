@@ -1,41 +1,54 @@
-# Draft manifest v2 for Bob (input to T3CODE-74)
+# Bob manifest v2 (T3CODE-74 pilot)
 
-`t3-plugin.json` (schemaVersion 2) is a draft. T3CODE-74 owns the manifest v2 format, and nothing in T3 parses this file yet. This note maps every v1 field (the managed-app manifest removed in T3CODE-78, last at commit 405bb5f) onto it and lists the fields the Bob port needed.
+`t3-plugin.json` follows the plugin design approved on T3CODE-74 on 2026-10-31. T3 doesn't parse v2 yet; that lands in P3–P6 of T3CODE-74.
+
+## Shape
+
+- `mcpServer` reuses `McpServerConfig` and `McpServerVariable` from Settings → Tools (`packages/contracts/src/agentTools.ts`):
+  - `name`: `bob`.
+  - `transport`: stdio, `bun src/mcp.ts`, with `env` as `McpServerVariable[]`.
+  - `variables[]`: the titled values the user fills in. Both tokens are `sensitive`.
+- `contributes.panels[]`, both rendering `ui://bob/workspace.html`:
+  - `bob.workspace` (`scope: project`) is Bob planning: work items, runs, and an inline planning review.
+  - `bob.runs` (`scope: thread`) uses the same view. With `threadId` in host context, it lists only that thread's Bob runs and refreshes on `host-context-changed`.
+- `contributes.commands[]` open those panels.
+- `t3Tools` is `[]`, because Bob never calls back into T3 (see below).
+
+There is no `runtime`, `workflows`, `hooks`, `settings`, or capability request. The planning review needs no manifest entry: `bob_planning_review` declares `_meta.ui.resourceUri: ui://bob/planning-review.html` and renders inline wherever the host shows tool calls as MCP Apps.
 
 ## v1 → v2 mapping
 
-| v1 (removed) | v2 draft | Notes |
-|---|---|---|
-| `runtime: { kind: "managed-app", command }` | `mcpServer.transport` (stdio) | Same shape as the T3CODE-73 `McpStdioTransport` (`command`, `args`, `env: McpServerVariable[]`). |
-| `contributes.panels[bob.workspace]` (project) | `contributes.panels[]` with `resourceUri` + `tool` | Renders `ui://bob/workspace.html`. If the host calls no tool, the view fetches its own data. |
-| `contributes.panels[bob.runs]` (thread.sidePanel) | Same view, `surface: thread.sidePanel` | Runs and work items share one view. |
-| `contributes.workflows[bob.planning-review]` (thread.main) | No manifest entry. Tool `bob_planning_review` declares `_meta.ui.resourceUri: ui://bob/planning-review.html` | In a thread, MCP Apps render inline from the tool call, so the manifest has nothing to declare. |
-| `settings[*]` + `settingsPanels` | `mcpServer.transport.env[]` | Tokens are `sensitive: true` and live in the Tools secret store. Today v1 plugin secrets are dropped by `PluginSettingsStore`. |
-| `capabilities.secrets.read` | Gone | Secrets arrive as env. |
-| `capabilities.network.connect` | Gone | The server process makes the network calls. The view needs no `connectDomains`, because everything goes through `tools/call`. |
-| `capabilities.ui.embed` | Implied by `contributes.panels` | |
-| `capabilities.threads.read` / `threads.dispatch` | `t3Tools.allow` | Empty for now: Bob dispatches to Bob, not to T3 threads. Add `t3_thread_read` / `t3_thread_launch` when Bob reports runs back into threads. |
-| `hooks` (project.opened, thread.created, thread.completed) | Not ported | MCP has no host-to-server event channel. See open questions. |
+The v1 manifest was removed in T3CODE-78; its last version is at commit 405bb5f.
 
-## Fields Bob needed
+| v1 | v2 |
+|---|---|
+| `runtime` (managed-app) | `mcpServer.transport` (stdio) |
+| `panels[bob.workspace]` (project surface) | `panels[bob.workspace]`, `scope: project` |
+| `panels[bob.runs]` (thread.sidePanel) | `panels[bob.runs]`, `scope: thread` |
+| `workflows[bob.planning-review]` | Tool `bob_planning_review` with its own `ui://` view |
+| `settings[*]`, `settingsPanels` | `mcpServer.transport.env` and `mcpServer.variables` |
+| `capabilities.secrets.read` | `sensitive` variables |
+| `capabilities.network.connect` | Dropped: the server process makes the network calls, and views go through `tools/call` |
+| `capabilities.ui.embed` | Implied by `panels` |
+| `capabilities.threads.read`, `threads.dispatch` | `t3Tools: []`. If Bob ever needs T3, the upper limit is `t3_thread_read` (threads.read) and `bob_coordination` (threads.dispatch). |
+| `hooks` | Dropped (D4) |
 
-- `mcpServer.name` matches T3CODE-73 server names (`^[a-z][a-z0-9_-]*$`): `bob`.
-- `mcpServer.transport.env[]` entries carry UI metadata beyond `McpServerVariable`: `title`, `placeholder`, `required`, default `value`, `field` (number bounds), and `hidden`.
-- Substitution variables:
-  - `${pluginDir}` is the installed plugin checkout.
-  - `${pluginDataDir}` is a per-plugin writable directory. Bob keeps approval state and Linear links in SQLite there. Outside T3 it defaults to `$XDG_STATE_HOME/t3code-bob-plugin/`, never T3's userdata.
-  - `${projectId}` sets panel tool arguments.
-- `contributes.panels[].tool` is the tool the host calls to seed a thread-less panel, delivered as `ui/notifications/tool-result`. It is optional: the workspace view can load itself.
-- `t3Tools.allow` is the allowlist for T3's `/mcp` endpoint, which replaces capability grants.
+## Server rules from the design
 
-## Tool surface
+- **Visibility.** Every tool a view calls declares `_meta.ui.visibility` including `"app"`:
+  - `bob_workspace`, `bob_planning_review` and `bob_planning_dispatch` are `["model", "app"]`.
+  - `bob_planning_approve` is `["app"]`, so only a human in a view can approve a dispatch.
+  - The agent-only tools are `bob_work_item_get`, `bob_runs_list` and `bob_linear_links`.
+- **No T3 token needed.** Only the pool-owned copy gets `T3_MCP_URL` and `T3_MCP_TOKEN` (D3). Bob doesn't call T3, so its tools behave the same in every copy.
+- **Stateless processes.** T3 runs one stdio copy per agent session plus one in its pool. A panel's approval (pool copy) and an agent's dispatch (session copy) can land in different processes. So the server keeps no state in memory:
+  - Approvals and Linear links live in one SQLite file (WAL, `busy_timeout`) at `BOB_PLUGIN_STATE_PATH`, default `$XDG_STATE_HOME/t3code-bob-plugin/state.sqlite`.
+  - Every copy opens that same file.
+  - `server.test.ts` covers approving in one copy and dispatching from another.
 
-| Tool | Visibility | View |
-|---|---|---|
-| `bob_workspace` | model + app | `ui://bob/workspace.html` |
-| `bob_planning_review` | model + app | `ui://bob/planning-review.html` |
-| `bob_planning_approve` | **app only** | none |
-| `bob_planning_dispatch` | model + app | `ui://bob/planning-review.html`; returns the refreshed review |
-| `bob_work_item_get`, `bob_runs_list`, `bob_linear_links` | model + app | none |
+## Open questions
 
-`bob_planning_approve` is app-only, so an agent can't approve its own dispatch. T3 already enforces `_meta.ui.visibility` in `McpAppRequests`. `bob_planning_dispatch` refuses to run until approval is recorded for that work item.
+1. **Shared state file.** Bob depends on every copy seeing the same `HOME`/`XDG_STATE_HOME`. Does the pool spawn plugins with the same environment as session copies? If not, Bob should move to `http` transport, or keep approval state in Bob itself.
+2. **Panel seeding.** Does `mcpApps.openPanel` deliver any tool result? The workspace view fetches its own data when none arrives within 250 ms, so either answer works.
+3. **Thread panels in Codex threads.** `bob.runs` matches runs by Bob's `threadId`. Is that the same id T3 puts in host context once Bob launches T3 threads?
+4. **Variable metadata.** `McpServerVariable` has no placeholder, required flag, or number bounds. The server clamps `BOB_POLL_SECONDS` to 15–3600 and fails with a clear error when `BOB_API_URL` is missing.
+5. **Unused Linear settings.** Nothing reads the Linear endpoint, token, or workspace yet. They are kept for parity with v1.

@@ -11,7 +11,8 @@ export type CallToolResult = {
   isError?: boolean;
 };
 
-export type HostContext = { theme?: "light" | "dark"; [key: string]: unknown };
+// T3 thread panels also get threadId, projectId and cwd (T3CODE-74).
+export type HostContext = { theme?: "light" | "dark"; threadId?: string; projectId?: string; cwd?: string; [key: string]: unknown };
 
 type JsonRpcMessage = {
   jsonrpc: "2.0";

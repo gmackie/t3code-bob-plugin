@@ -2,7 +2,7 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 
 import type { BobPlanningClient } from "./planning.ts";
-import { createBobMcpServer } from "./server.ts";
+import { createBobMcpServer, type BobServerOptions } from "./server.ts";
 import type { BobLinearLink } from "./types.ts";
 import type { BobWorkflowState } from "./state.ts";
 
@@ -38,11 +38,11 @@ export function memoryState() {
   } as never;
 }
 
-export async function connectedClient(options: { client?: BobPlanningClient; workspaceId?: string | null } = {}) {
+export async function connectedClient(options: { client?: BobPlanningClient; state?: BobServerOptions["state"]; workspaceId?: string | null } = {}) {
   const bob = options.client ? { client: options.client, dispatched: [] } : fakeBob();
   const server = createBobMcpServer({
     client: bob.client,
-    state: memoryState(),
+    state: options.state ?? memoryState(),
     ...(options.workspaceId === null ? {} : { workspaceId: options.workspaceId ?? "ws-1" }),
     pollSeconds: 30,
   });

@@ -2,8 +2,14 @@ import { toolData } from "./bridge.ts";
 import { renderWorkspace, type WorkspaceData } from "./render.ts";
 import { mountPlanning, startView } from "./shared.client.ts";
 
-const bridge = startView("bob-workspace");
+// In a thread-scoped panel the host supplies threadId; the runs list then
+// follows the active thread.
+const bridge = startView("bob-workspace", (context, previous) => {
+  threadId = context.threadId;
+  if (data && context.threadId !== previous.threadId) void refresh();
+});
 const root = document.getElementById("app")!;
+let threadId: string | undefined;
 let data: WorkspaceData | undefined;
 let args: Record<string, unknown> = {};
 let filter = "";
@@ -14,7 +20,7 @@ function draw() {
   if (!data) return;
   // Keep the review pane (and its state) across list refreshes.
   const pane = root.querySelector<HTMLElement>("[data-role=review]");
-  root.innerHTML = renderWorkspace(data, filter);
+  root.innerHTML = renderWorkspace(data, filter, threadId);
   if (pane) root.querySelector("[data-role=review]")!.replaceWith(pane);
   else review = mountPlanning(bridge, root.querySelector<HTMLElement>("[data-role=review]")!, data.pollSeconds);
   clearTimeout(timer);
