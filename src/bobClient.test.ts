@@ -44,6 +44,15 @@ describe("Bob REST client", () => {
     expect(calls[0]!.headers.authorization).toBeUndefined();
   });
 
+  it("does not send server-side query details to the panel on a service failure", async () => {
+    const { fetch } = recorder({ "/runs?workspaceId=ws&limit=50": { status: 500, body: { error: "Failed query: select secret_internal_columns from agent_runs" } } });
+    const client = createBobHttpClient({ baseUrl: "https://bob.example", fetch });
+    await expect(client.listRuns({ workspaceId: "ws" })).rejects.toThrow("Bob is temporarily unavailable");
+    try { await client.listRuns({ workspaceId: "ws" }); } catch (error) {
+      expect(String(error)).not.toContain("secret_internal_columns");
+    }
+  });
+
   it("turns Bob error bodies and missing items into errors", async () => {
     const { fetch } = recorder({ "/work-items/w1/dispatch": { status: 403, body: { error: "dispatch disabled" } }, "/work-items/get": { body: null } });
     const client = createBobHttpClient({ baseUrl: "https://bob.example", fetch });

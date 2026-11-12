@@ -8,7 +8,7 @@ import type { BobStateStore } from "./state.ts";
 import { VIEWS, viewHtml, type ViewName } from "./views/html.ts";
 import type { PlanningData, WorkspaceData } from "./views/render.ts";
 
-export const SERVER_INFO = { name: "bob", version: "0.2.0" } as const;
+export const SERVER_INFO = { name: "bob", version: "0.2.1" } as const;
 
 export type BobServerOptions = {
   client: BobPlanningClient;
@@ -65,10 +65,14 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
     async ({ workspaceId, projectId, query }) =>
       result(async () => {
         const source = createBobWorkSource(options.client, workspace(workspaceId));
-        const [workItems, runs] = await Promise.all([source.list({ ...(projectId ? { projectId } : {}), ...(query ? { query } : {}) }), source.runs()]);
-        const data: WorkspaceData = { workspaceId: workspace(workspaceId), workItems, runs, pollSeconds: options.pollSeconds, refreshedAt: new Date().toISOString() };
+        const [workItems, runsResult] = await Promise.all([
+          source.list({ ...(projectId ? { projectId } : {}), ...(query ? { query } : {}) }),
+          source.runs().then((runs) => ({ runs }), (error: unknown) => ({ runs: [], runsError: error instanceof Error ? error.message : String(error) })),
+        ]);
+        const data: WorkspaceData = { workspaceId: workspace(workspaceId), workItems, ...runsResult, pollSeconds: options.pollSeconds, refreshedAt: new Date().toISOString() };
         const lines = workItems.map((item) => `- ${item.id} [${item.status.label}] ${item.title}`);
-        return { data, text: `${workItems.length} Bob work items, ${runs.length} recent runs.\n${lines.join("\n")}` };
+        const runSummary = data.runsError ? `Runs unavailable: ${data.runsError}` : `${data.runs.length} recent runs.`;
+        return { data, text: `${workItems.length} Bob work items. ${runSummary}\n${lines.join("\n")}` };
       }),
   );
 

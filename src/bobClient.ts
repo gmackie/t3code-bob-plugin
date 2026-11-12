@@ -18,6 +18,7 @@ export function createBobHttpClient(options: { baseUrl: string; token?: string; 
   async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
     const response = await doFetch(`${base}${path}`, {
       method,
+      signal: AbortSignal.timeout(15_000),
       headers: {
         accept: "application/json",
         ...(body === undefined ? {} : { "content-type": "application/json" }),
@@ -28,6 +29,7 @@ export function createBobHttpClient(options: { baseUrl: string; token?: string; 
     const text = await response.text();
     const json = text ? (JSON.parse(text) as unknown) : null;
     if (!response.ok) {
+      if (response.status >= 500) throw new BobApiError(response.status, "Bob is temporarily unavailable");
       const message = json && typeof json === "object" && "error" in json ? String(json.error) : response.statusText;
       throw new BobApiError(response.status, `Bob API ${method} ${path} failed (${response.status}): ${message}`);
     }

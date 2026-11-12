@@ -5,8 +5,8 @@ import { mountPlanning, startView } from "./shared.client.ts";
 // In a thread-scoped panel the host supplies threadId; the runs list then
 // follows the active thread.
 const bridge = startView("bob-workspace", (context, previous) => {
-  threadId = context.threadId;
-  if (data && context.threadId !== previous.threadId) void refresh();
+  threadId = context.t3?.threadId;
+  if (data && threadId !== previous.t3?.threadId) void refresh();
 });
 const root = document.getElementById("app")!;
 let threadId: string | undefined;
@@ -47,10 +47,11 @@ root.addEventListener("input", (event) => {
   const input = event.target as HTMLInputElement;
   if (input.dataset.role !== "filter") return;
   filter = input.value;
-  draw();
-  const next = root.querySelector<HTMLInputElement>("[data-role=filter]")!;
-  next.focus();
-  next.setSelectionRange(filter.length, filter.length);
+  if (!data) return;
+  // Replacing the focused input interrupts native WebView text entry.
+  const template = document.createElement("template");
+  template.innerHTML = renderWorkspace(data, filter, threadId);
+  root.querySelector('[aria-label="Work items"]')!.replaceWith(template.content.querySelector('[aria-label="Work items"]')!);
 });
 
 root.addEventListener("click", (event) => {

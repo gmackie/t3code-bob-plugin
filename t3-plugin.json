@@ -2,41 +2,88 @@
   "schemaVersion": 2,
   "id": "com.t3code.bob",
   "displayName": "Bob",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "mcpServer": {
     "name": "bob",
     "transport": {
       "type": "stdio",
       "command": "bun",
-      "args": ["src/mcp.ts"],
+      "args": [
+        "${pluginRoot}/src/mcp.ts"
+      ],
       "env": [
-        { "name": "BOB_API_URL", "value": "" },
-        { "name": "BOB_API_TOKEN", "value": "", "sensitive": true },
-        { "name": "BOB_WORKSPACE_ID", "value": "" },
-        { "name": "LINEAR_API_URL", "value": "https://api.linear.app/graphql" },
-        { "name": "LINEAR_API_TOKEN", "value": "", "sensitive": true },
-        { "name": "LINEAR_WORKSPACE", "value": "" },
-        { "name": "BOB_POLL_SECONDS", "value": "60" }
+        {
+          "name": "BOB_API_URL",
+          "value": "",
+          "title": "Bob API endpoint"
+        },
+        {
+          "name": "BOB_API_TOKEN",
+          "value": "",
+          "sensitive": true,
+          "title": "Bob API token"
+        },
+        {
+          "name": "BOB_WORKSPACE_ID",
+          "value": "",
+          "title": "Bob workspace id"
+        },
+        {
+          "name": "LINEAR_API_URL",
+          "value": "https://api.linear.app/graphql",
+          "title": "Linear-compatible endpoint"
+        },
+        {
+          "name": "LINEAR_API_TOKEN",
+          "value": "",
+          "sensitive": true,
+          "title": "Linear-compatible API token"
+        },
+        {
+          "name": "LINEAR_WORKSPACE",
+          "value": "",
+          "title": "Linear-compatible workspace"
+        },
+        {
+          "name": "BOB_POLL_SECONDS",
+          "value": "60",
+          "title": "Refresh interval in seconds (15-3600)"
+        },
+        {
+          "name": "BOB_PLUGIN_STATE_PATH",
+          "value": "",
+          "title": "Shared Bob state file",
+          "description": "Optional absolute SQLite path, shared by the server and agent copies."
+        }
       ]
-    },
-    "variables": [
-      { "name": "BOB_API_URL", "title": "Bob API endpoint", "sensitive": false },
-      { "name": "BOB_API_TOKEN", "title": "Bob API token", "sensitive": true },
-      { "name": "BOB_WORKSPACE_ID", "title": "Bob workspace id", "sensitive": false },
-      { "name": "LINEAR_API_URL", "title": "Linear-compatible endpoint", "sensitive": false },
-      { "name": "LINEAR_API_TOKEN", "title": "Linear-compatible API token", "sensitive": true },
-      { "name": "LINEAR_WORKSPACE", "title": "Linear-compatible workspace", "sensitive": false },
-      { "name": "BOB_POLL_SECONDS", "title": "Refresh interval in seconds (15-3600)", "sensitive": false }
-    ]
+    }
   },
   "contributes": {
     "panels": [
-      { "id": "bob.workspace", "title": "Bob planning", "scope": "project", "resourceUri": "ui://bob/workspace.html" },
-      { "id": "bob.runs", "title": "Bob runs", "scope": "thread", "resourceUri": "ui://bob/workspace.html" }
+      {
+        "id": "bob-workspace",
+        "title": "Bob planning",
+        "scope": "project",
+        "resourceUri": "ui://bob/workspace.html"
+      },
+      {
+        "id": "bob-runs",
+        "title": "Bob runs",
+        "scope": "thread",
+        "resourceUri": "ui://bob/workspace.html"
+      }
     ],
     "commands": [
-      { "id": "bob.open-planning", "title": "Bob: Open planning", "panel": "bob.workspace" },
-      { "id": "bob.open-runs", "title": "Bob: Open runs for this thread", "panel": "bob.runs" }
+      {
+        "id": "bob-open-planning",
+        "title": "Bob: Open planning",
+        "panel": "bob-workspace"
+      },
+      {
+        "id": "bob-open-runs",
+        "title": "Bob: Open runs for this thread",
+        "panel": "bob-runs"
+      }
     ]
   },
   "t3Tools": []

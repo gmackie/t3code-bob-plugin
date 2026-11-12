@@ -72,6 +72,17 @@ describe("Bob MCP server", () => {
     expect(result.content[0]?.text).toContain("w1 [in progress] Ship the MCP port");
   });
 
+  it("keeps work items available and reports a failed runs request", async () => {
+    const bob = fakeBob({ listRuns: async () => { throw new Error("Runs timed out"); } });
+    const { client } = await connectedClient({ client: bob.client });
+    const result = await call<{ workItems: unknown[]; runsError: string }>(client, "bob_workspace");
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent?.workItems).toHaveLength(2);
+    expect(result.structuredContent?.runsError).toBe("Runs timed out");
+    expect(result.content[0]?.text).toContain("Runs unavailable: Runs timed out");
+    expect(result.content[0]?.text).not.toContain("0 recent runs");
+  });
+
   it("reports a missing workspace as a tool error", async () => {
     const { client } = await connectedClient({ workspaceId: null });
     const result = await call(client, "bob_workspace");

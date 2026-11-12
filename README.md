@@ -40,8 +40,8 @@ BOB_API_URL=http://localhost:4319 BOB_WORKSPACE_ID=00000000-0000-4000-8000-00000
 bun run inspect                # or the official MCP Inspector (Apps tab)
 ```
 
-Until T3 installs v2 plugins (T3CODE-74), you can add it by hand in Settings → Tools (T3CODE-73): a stdio server named `bob`, command `bun`, args `/path/to/repo/src/mcp.ts`, and the env vars above, with the tokens marked sensitive. Today T3 renders MCP Apps inline only in Codex threads.
+Install this directory through T3’s plugin installer after running `bun install --frozen-lockfile`. Configure the Bob endpoint, token and workspace on the connected server. Web, desktop and mobile can open its panels; mobile uses the server installation.
 
-The `bob.workspace` panel is project-scoped. `bob.runs` is thread-scoped: it uses `threadId` from host context and follows `host-context-changed`.
+The `bob-workspace` panel is project-scoped. `bob-runs` is thread-scoped: it uses `hostContext.t3.threadId` and follows `host-context-changed`.
 
 See `docs/manifest-v2.md` for the manifest mapping, the server rules from the design, and the open questions.
