@@ -8,7 +8,7 @@ import type { BobStateStore } from "./state.ts";
 import { VIEWS, viewHtml, type ViewName } from "./views/html.ts";
 import type { PlanningData, WorkspaceData } from "./views/render.ts";
 
-export const SERVER_INFO = { name: "bob", version: "0.2.0" } as const;
+export const SERVER_INFO = { name: "bob", version: "0.2.1" } as const;
 
 export type BobServerOptions = {
   client: BobPlanningClient;

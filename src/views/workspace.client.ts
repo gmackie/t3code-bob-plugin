@@ -5,8 +5,8 @@ import { mountPlanning, startView } from "./shared.client.ts";
 // In a thread-scoped panel the host supplies threadId; the runs list then
 // follows the active thread.
 const bridge = startView("bob-workspace", (context, previous) => {
-  threadId = context.threadId;
-  if (data && context.threadId !== previous.threadId) void refresh();
+  threadId = context.t3?.threadId;
+  if (data && threadId !== previous.t3?.threadId) void refresh();
 });
 const root = document.getElementById("app")!;
 let threadId: string | undefined;

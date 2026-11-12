@@ -83,7 +83,7 @@ describe("workspace view in a DOM", () => {
     const deliver = (data: unknown) => win.dispatchEvent(new win.MessageEvent("message", { data, source: parent as never }));
     const parent = {
       async postMessage(message: { id?: number; method?: string; params?: { name: string; arguments: Record<string, unknown> } }) {
-        if (message.method === "ui/initialize") deliver({ jsonrpc: "2.0", id: message.id, result: { hostContext: { threadId: "thread-b", projectId: "p", cwd: "/repo" } } });
+        if (message.method === "ui/initialize") deliver({ jsonrpc: "2.0", id: message.id, result: { hostContext: { t3: { threadId: "thread-b", projectId: "p", cwd: "/repo" } } } });
         if (message.method === "tools/call") {
           calls.push(message.params!.name);
           deliver({ jsonrpc: "2.0", id: message.id, result: await client.callTool({ name: message.params!.name, arguments: message.params!.arguments }) });
@@ -99,7 +99,7 @@ describe("workspace view in a DOM", () => {
     const runs = () => win.document.querySelector("[aria-label=Runs]")!.textContent!;
     expect(runs()).toContain("No Bob runs for this thread.");
 
-    deliver({ jsonrpc: "2.0", method: "ui/notifications/host-context-changed", params: { threadId: "thread-a" } });
+    deliver({ jsonrpc: "2.0", method: "ui/notifications/host-context-changed", params: { t3: { threadId: "thread-a" } } });
     await Bun.sleep(50);
     expect(runs()).toContain("Runs in this thread");
     expect(runs()).toContain("s1");
