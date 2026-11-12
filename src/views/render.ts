@@ -7,6 +7,7 @@ export type WorkspaceData = {
   workspaceId: string;
   workItems: readonly WorkItem[];
   runs: readonly RunSummary[];
+  runsError?: string;
   pollSeconds: number;
   refreshedAt: string;
 };
@@ -66,7 +67,9 @@ export function renderWorkspace(data: WorkspaceData, filter = "", threadId?: str
         .join("\n")
     : `<li class="empty">${query ? "No work items match the filter." : "No Bob work items in this workspace."}</li>`;
   const scopedRuns = threadId ? data.runs.filter((run) => run.threadId === threadId) : data.runs;
-  const runs = scopedRuns.length
+  const runs = data.runsError
+    ? `<li class="error" role="alert">Runs unavailable: ${esc(data.runsError)}. Use Refresh to retry.</li>`
+    : scopedRuns.length
     ? scopedRuns
         .slice(0, 10)
         .map(
@@ -86,7 +89,7 @@ export function renderWorkspace(data: WorkspaceData, filter = "", threadId?: str
 </header>
 <input type="search" data-role="filter" placeholder="Filter work items" value="${esc(filter)}" aria-label="Filter work items">
 <section aria-label="Work items"><h2>Work items <span class="count">${items.length}</span></h2><ul>${rows}</ul></section>
-<section aria-label="Runs"><h2>${threadId ? "Runs in this thread" : "Recent runs"} <span class="count">${scopedRuns.length}</span></h2><ul>${runs}</ul></section>
+<section aria-label="Runs"><h2>${threadId ? "Runs in this thread" : "Recent runs"}${data.runsError ? "" : ` <span class="count">${scopedRuns.length}</span>`}</h2><ul>${runs}</ul></section>
 <div data-role="review"></div>`;
 }
 

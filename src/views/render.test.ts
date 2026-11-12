@@ -15,6 +15,13 @@ describe("view renderers", () => {
     expect(html).toContain("No runs yet.");
   });
 
+  it("shows a runs error alongside the work items instead of claiming there are no runs", () => {
+    const html = renderWorkspace({ workspaceId: "ws", workItems: [item], runs: [], runsError: "Timed out <upstream>", pollSeconds: 60, refreshedAt: "2026-10-31T00:00:00Z" });
+    expect(html).toContain('data-work-item-id="w1"');
+    expect(html).toContain('role="alert">Runs unavailable: Timed out &lt;upstream&gt;');
+    expect(html).not.toContain("No runs yet.");
+  });
+
   it("limits runs to the active thread in a thread-scoped panel", () => {
     const data = {
       workspaceId: "ws",
