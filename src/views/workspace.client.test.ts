@@ -47,6 +47,12 @@ describe("workspace view in a DOM", () => {
     expect(doc.querySelector("[data-role=review] strong")?.textContent).toBe("verify");
     expect(dispatched).toEqual([{ workItemId: "w1", agentType: "codex" }]);
     expect(calls).toEqual(["bob_planning_review", "bob_planning_approve", "bob_planning_review", "bob_planning_dispatch", "bob_planning_review"]);
+    const search = doc.querySelector<HTMLInputElement>('[data-role="filter"]')!;
+    search.value = "ship";
+    search.dispatchEvent(new win.Event("input", { bubbles: true }));
+    expect(doc.querySelector('[data-role="filter"]')).toBe(search);
+    expect(doc.querySelectorAll("[data-action=review]")).toHaveLength(1);
+    expect(doc.querySelector('[data-work-item-id="w1"]')).not.toBeNull();
     await win.happyDOM.abort();
   });
 

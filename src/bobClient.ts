@@ -29,9 +29,8 @@ export function createBobHttpClient(options: { baseUrl: string; token?: string; 
     const text = await response.text();
     const json = text ? (JSON.parse(text) as unknown) : null;
     if (!response.ok) {
-      const message = response.status >= 500
-        ? "Bob is temporarily unavailable. Try again shortly."
-        : json && typeof json === "object" && "error" in json ? String(json.error) : response.statusText;
+      if (response.status >= 500) throw new BobApiError(response.status, "Bob is temporarily unavailable");
+      const message = json && typeof json === "object" && "error" in json ? String(json.error) : response.statusText;
       throw new BobApiError(response.status, `Bob API ${method} ${path} failed (${response.status}): ${message}`);
     }
     return json as T;
