@@ -1,6 +1,12 @@
 #!/usr/bin/env bun
 // In-memory stand-in for Bob's /api/v1 routes the plugin uses, for local
 // demos and inspector sessions: `bun scripts/fake-bob.ts` (PORT, default 4319).
+// It also serves a fake SDLC edge at ws://…/api/sdlc/ws (any Bearer token) so
+// bob_sdlc renders offline: run the plugin with BOB_API_TOKEN=bob_fake and open
+//   /?tool=bob_sdlc                                   (fleet)
+//   /?tool=bob_sdlc&args={"threadId":"thread-demo-running"}  (thread match; also thread-demo-waiting)
+import { demoCi, demoSnapshot, demoTail } from "../src/sdlc/fixtures.ts";
+
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const now = Date.now();
 const iso = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString();
@@ -18,10 +24,15 @@ const runs = [
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
-const server = Bun.serve({
+const server = Bun.serve<{ watched: string | null }>({
   port: Number(process.env.PORT ?? 4319),
-  async fetch(request) {
+  async fetch(request, srv) {
     const url = new URL(request.url);
+    if (url.pathname === "/api/sdlc/ws") {
+      // Native clients send a Bearer key and no Origin, like the real edge expects.
+      if (!request.headers.get("authorization")?.startsWith("Bearer ")) return new Response("missing bearer", { status: 401 });
+      return srv.upgrade(request, { data: { watched: null } }) ? undefined : new Response("upgrade failed", { status: 400 });
+    }
     const path = url.pathname.replace(/^\/api\/v1/, "");
     const body = request.method === "POST" ? ((await request.json().catch(() => ({}))) as Record<string, unknown>) : {};
     if (path === "/work-items/list") return json(workItems.filter((item) => !body.projectId || item.projectId === body.projectId));
@@ -39,5 +50,25 @@ const server = Bun.serve({
     }
     return json({ error: `fake Bob has no route ${request.method} ${url.pathname}` }, 404);
   },
+  websocket: {
+    open(ws) {
+      ws.subscribe("sdlc");
+    },
+    message(ws, raw) {
+      const message = JSON.parse(String(raw)) as { type: string; itemId?: string | null };
+      if (message.type === "hello") {
+        ws.send(JSON.stringify(demoSnapshot()));
+        ws.send(JSON.stringify({ type: "status", coordinatorSeenAt: Date.now() }));
+      }
+      if (message.type === "watch" && message.itemId) {
+        ws.data.watched = message.itemId;
+        const tail = demoTail(message.itemId);
+        ws.send(JSON.stringify(tail ?? { type: "tailUnavailable", itemId: message.itemId, reason: "The relay has not posted for this item recently." }));
+        ws.send(JSON.stringify(demoCi(message.itemId)));
+      }
+    },
+  },
 });
+// The coordinator heartbeat, so the view never shows the coordinator as offline.
+setInterval(() => server.publish("sdlc", JSON.stringify({ type: "status", coordinatorSeenAt: Date.now() })), 30_000);
 console.error(`fake Bob API on http://localhost:${server.port} (workspace ${workspaceId})`);

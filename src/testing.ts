@@ -2,6 +2,9 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 
 import type { BobPlanningClient } from "./planning.ts";
+import type { SdlcEdgeSource } from "./sdlc/edgeClient.ts";
+import { demoCi, demoSnapshot, demoTail } from "./sdlc/fixtures.ts";
+import { emptyView, reduce } from "./sdlc/protocol.ts";
 import { createBobMcpServer, type BobServerOptions } from "./server.ts";
 import type { BobLinearLink } from "./types.ts";
 import type { BobWorkflowState } from "./state.ts";
@@ -38,13 +41,30 @@ export function memoryState() {
   } as never;
 }
 
-export async function connectedClient(options: { client?: BobPlanningClient; state?: BobServerOptions["state"]; workspaceId?: string | null } = {}) {
+// An in-memory SDLC edge holding the demo snapshot; watch() delivers the demo tail and CI.
+export function fakeSdlcEdge(options: { connected?: boolean } = {}): SdlcEdgeSource & { watched: (string | null)[] } {
+  const view = options.connected === false ? emptyView() : reduce(emptyView(), demoSnapshot(Date.now()));
+  const watched: (string | null)[] = [];
+  return {
+    view,
+    connection: options.connected === false ? "reconnecting" : "live",
+    error: options.connected === false ? "The SDLC edge refused the socket." : null,
+    watched,
+    ready: async () => {},
+    watch: (itemId) => void watched.push(itemId),
+    attempt: (itemId) => (watched.includes(itemId) ? { ...(demoTail(itemId) ? { tail: demoTail(itemId)!.frame } : {}), ci: demoCi(itemId) } : {}),
+    stop() {},
+  };
+}
+
+export async function connectedClient(options: { client?: BobPlanningClient; state?: BobServerOptions["state"]; workspaceId?: string | null; sdlcEdge?: SdlcEdgeSource | null } = {}) {
   const bob = options.client ? { client: options.client, dispatched: [] } : fakeBob();
   const server = createBobMcpServer({
     client: bob.client,
     state: options.state ?? memoryState(),
     ...(options.workspaceId === null ? {} : { workspaceId: options.workspaceId ?? "ws-1" }),
     pollSeconds: 30,
+    ...(options.sdlcEdge === null ? {} : { sdlcEdge: options.sdlcEdge ?? fakeSdlcEdge() }),
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);

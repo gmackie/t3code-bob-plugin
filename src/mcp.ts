@@ -7,6 +7,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 
 import { createBobHttpClient } from "./bobClient.ts";
 import { loadConfig } from "./config.ts";
+import { createEdgeClient } from "./sdlc/edgeClient.ts";
 import { createBobMcpServer } from "./server.ts";
 import { BobStateStore, bunSqliteExecutor, openStateDatabase } from "./state.ts";
 
@@ -20,5 +21,8 @@ const server = createBobMcpServer({
   state,
   ...(config.bobWorkspaceId ? { workspaceId: config.bobWorkspaceId } : {}),
   pollSeconds: config.pollSeconds,
+  // Connects lazily on the first bob_sdlc call, not at startup: T3 runs one
+  // copy of this server per agent session, and most never open the SDLC view.
+  ...(config.bobApiToken ? { sdlcEdge: createEdgeClient({ baseUrl: config.bobApiUrl, token: config.bobApiToken }) } : {}),
 });
 await server.connect(new StdioServerTransport());
