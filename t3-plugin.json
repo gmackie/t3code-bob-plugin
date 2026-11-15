@@ -71,6 +71,18 @@
         "title": "Bob runs",
         "scope": "thread",
         "resourceUri": "ui://bob/workspace.html"
+      },
+      {
+        "id": "bob-sdlc",
+        "title": "Bob SDLC",
+        "scope": "thread",
+        "resourceUri": "ui://bob/sdlc.html"
+      },
+      {
+        "id": "bob-sdlc-fleet",
+        "title": "Bob SDLC fleet",
+        "scope": "project",
+        "resourceUri": "ui://bob/sdlc.html"
       }
     ],
     "commands": [
@@ -83,6 +95,16 @@
         "id": "bob-open-runs",
         "title": "Bob: Open runs for this thread",
         "panel": "bob-runs"
+      },
+      {
+        "id": "bob-open-sdlc",
+        "title": "Bob: Open SDLC for this thread",
+        "panel": "bob-sdlc"
+      },
+      {
+        "id": "bob-open-sdlc-fleet",
+        "title": "Bob: Open SDLC fleet",
+        "panel": "bob-sdlc-fleet"
       }
     ]
   },

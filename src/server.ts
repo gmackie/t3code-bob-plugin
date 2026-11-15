@@ -3,6 +3,8 @@ import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from "@model
 import { z } from "zod";
 
 import { reconcileBobLinearLink } from "./links.ts";
+import type { SdlcEdgeSource } from "./sdlc/edgeClient.ts";
+import { edgeStatus, fleet, itemForThread, threadItem, type SdlcData } from "./sdlc/model.ts";
 import { buildPlanningWorkflow, createBobWorkSource, type BobPlanningClient } from "./planning.ts";
 import type { BobStateStore } from "./state.ts";
 import { VIEWS, viewHtml, type ViewName } from "./views/html.ts";
@@ -15,7 +17,13 @@ export type BobServerOptions = {
   state: Pick<BobStateStore, "getWorkflowState" | "saveWorkflowState" | "getLinearLink" | "listLinearLinks" | "saveLinearLink" | "removeLinearLink">;
   workspaceId?: string;
   pollSeconds: number;
+  /** Bob's SDLC edge; absent when BOB_API_TOKEN is not configured. */
+  sdlcEdge?: SdlcEdgeSource;
 };
+
+// The SDLC view refreshes from the process's in-memory edge view, so it can
+// refresh faster than the REST-backed workspace.
+export const SDLC_REFRESH_SECONDS = { thread: 5, fleet: 15 } as const;
 
 // Approval is recorded per work item in the shared state file, not in memory:
 // T3 runs one copy of a stdio plugin per agent session plus one in its pool,
@@ -91,6 +99,67 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
         const data = await planning(id);
         const next = data.workflow.actions?.[0]?.title ?? "none";
         return { data, text: `Planning review for "${data.workItem.title}": stage ${data.workflow.currentStage}, next action: ${next}.` };
+      }),
+  );
+
+  async function sdlcEdge(): Promise<SdlcEdgeSource> {
+    const edge = options.sdlcEdge;
+    if (!edge) throw new Error("Bob's SDLC edge needs BOB_API_TOKEN (a bob_ API key with write permission whose user is an SDLC viewer)");
+    await edge.ready();
+    return edge;
+  }
+
+  registerAppTool(
+    server,
+    "bob_sdlc",
+    {
+      title: "Bob SDLC",
+      description:
+        "Show Bob's SDLC state from the coordinator's edge. With threadId: the plan, state, milestones, pending questions, live tail and CI of the SDLC item running that T3 thread. Without: the fleet (counts per state, items needing attention, plan progress). Read-only.",
+      inputSchema: z.object({ threadId: z.string().min(1).optional().describe("T3 thread id; omit for the fleet") }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+      _meta: { ui: { resourceUri: VIEWS.sdlc.uri, visibility: ["model", "app"] } },
+    },
+    async ({ threadId }) =>
+      result(async () => {
+        const edge = await sdlcEdge();
+        if (threadId) {
+          const item = itemForThread(edge.view, threadId);
+          // The edge relays tail and CI only to sockets that watch the item.
+          if (item) edge.watch(item.itemId);
+          const data: SdlcData = {
+            scope: "thread",
+            threadId,
+            item: item ? threadItem(edge.view, item, edge.attempt(item.itemId)) : null,
+            ...edgeStatus(edge, SDLC_REFRESH_SECONDS.thread),
+          };
+          const text = data.item
+            ? `Bob SDLC item ${data.item.issue?.identifier ?? data.item.itemId} (plan ${data.item.planId}) is ${data.item.stateLabel}.${data.item.pendingQuestions.length ? ` ${data.item.pendingQuestions.length} question(s) wait for an answer in Bob.` : ""}`
+            : "No Bob SDLC item is running this thread.";
+          return { data, text: data.error ? `${text} Edge: ${data.error}` : text };
+        }
+        const data: SdlcData = { scope: "fleet", ...fleet(edge.view), ...edgeStatus(edge, SDLC_REFRESH_SECONDS.fleet) };
+        const counts = data.counts.map((c) => `${c.count} ${c.label.toLowerCase()}`).join(", ") || "no active items";
+        const text = `Bob SDLC fleet: ${data.totalItems} items (${counts}); ${data.attention.length} need attention; ${data.plans.length} plans.`;
+        return { data, text: data.error ? `${text} Edge: ${data.error}` : text };
+      }),
+  );
+
+  server.registerTool(
+    "bob_sdlc_item_for_thread",
+    {
+      title: "Bob SDLC item for a thread",
+      description: "Return the raw Bob SDLC item (coordinator ItemSnapshot) whose execution runs in the given T3 thread, or null.",
+      inputSchema: z.object({ threadId: z.string().min(1).describe("T3 thread id") }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ threadId }) =>
+      result(async () => {
+        const edge = await sdlcEdge();
+        const item = itemForThread(edge.view, threadId);
+        const plan = item ? (edge.view.plans[item.planId] ?? null) : null;
+        const data = { threadId, item, plan, connection: edge.connection, ...(edge.error ? { error: edge.error } : {}) };
+        return { data, text: item ? JSON.stringify(item, null, 2) : `No Bob SDLC item is running thread ${threadId}.` };
       }),
   );
 

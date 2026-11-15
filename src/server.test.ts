@@ -3,7 +3,8 @@ import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 
 import { tmpdir } from "node:os";
 
-import { connectedClient, fakeBob } from "./testing.ts";
+import { DEMO_THREADS } from "./sdlc/fixtures.ts";
+import { connectedClient, fakeBob, fakeSdlcEdge } from "./testing.ts";
 
 type Structured<T> = { structuredContent?: T; isError?: boolean; content: { type: string; text?: string }[] };
 const call = async <T = Record<string, unknown>>(client: Awaited<ReturnType<typeof connectedClient>>["client"], name: string, args: Record<string, unknown> = {}) =>
@@ -14,13 +15,15 @@ describe("Bob MCP server", () => {
     const { client } = await connectedClient();
     const { tools } = await client.listTools();
     const byName = new Map(tools.map((tool) => [tool.name, tool]));
-    expect([...byName.keys()].sort()).toEqual(["bob_linear_links", "bob_planning_approve", "bob_planning_dispatch", "bob_planning_review", "bob_runs_list", "bob_work_item_get", "bob_workspace"]);
+    expect([...byName.keys()].sort()).toEqual(["bob_linear_links", "bob_planning_approve", "bob_planning_dispatch", "bob_planning_review", "bob_runs_list", "bob_sdlc", "bob_sdlc_item_for_thread", "bob_work_item_get", "bob_workspace"]);
     expect(byName.get("bob_workspace")?._meta).toMatchObject({ ui: { resourceUri: "ui://bob/workspace.html" }, "ui/resourceUri": "ui://bob/workspace.html" });
     expect(byName.get("bob_planning_review")?._meta).toMatchObject({ ui: { resourceUri: "ui://bob/planning-review.html" } });
     expect(byName.get("bob_planning_approve")?._meta).toEqual({ ui: { visibility: ["app"] } });
+    expect(byName.get("bob_sdlc")?._meta).toMatchObject({ ui: { resourceUri: "ui://bob/sdlc.html", visibility: ["model", "app"] } });
+    expect(byName.get("bob_sdlc_item_for_thread")?._meta?.ui).toBeUndefined();
     expect(byName.get("bob_workspace")?.annotations?.readOnlyHint).toBe(true);
     // T3 only lets a view call tools whose visibility includes "app".
-    for (const name of ["bob_workspace", "bob_planning_review", "bob_planning_approve", "bob_planning_dispatch"]) {
+    for (const name of ["bob_workspace", "bob_planning_review", "bob_planning_approve", "bob_planning_dispatch", "bob_sdlc"]) {
       expect((byName.get(name)?._meta as { ui: { visibility: string[] } }).ui.visibility).toContain("app");
     }
   });
@@ -50,6 +53,7 @@ describe("Bob MCP server", () => {
     expect(resources.map((resource) => [resource.uri, resource.mimeType])).toEqual([
       ["ui://bob/workspace.html", RESOURCE_MIME_TYPE],
       ["ui://bob/planning-review.html", RESOURCE_MIME_TYPE],
+      ["ui://bob/sdlc.html", RESOURCE_MIME_TYPE],
     ]);
     for (const resource of resources) {
       const { contents } = await client.readResource({ uri: resource.uri });
@@ -116,5 +120,47 @@ describe("Bob MCP server", () => {
     expect((await call<{ links: unknown[] }>(client, "bob_linear_links", { action: "list" })).structuredContent?.links).toHaveLength(1);
     await call(client, "bob_linear_links", { action: "remove", bobWorkItemId: "w1" });
     expect((await call<{ link: unknown }>(client, "bob_linear_links", { action: "get", bobWorkItemId: "w1" })).structuredContent?.link).toBeNull();
+  });
+
+  it("shows the SDLC item running a thread, and watches it for tail and CI", async () => {
+    const edge = fakeSdlcEdge();
+    const { client } = await connectedClient({ sdlcEdge: edge });
+    const result = await call<{ scope: string; item: { itemId: string; stateLabel: string; ci: { available: boolean } } }>(client, "bob_sdlc", { threadId: DEMO_THREADS.running });
+    expect(result.isError).toBeFalsy();
+    expect(edge.watched).toEqual(["item-a"]);
+    expect(result.structuredContent).toMatchObject({ scope: "thread", threadId: DEMO_THREADS.running, connection: "live", refreshSeconds: 5, item: { itemId: "item-a", stateLabel: "Running", ci: { available: true } } });
+    expect(result.content[0]?.text).toBe("Bob SDLC item T3CODE-201 (plan plan-sdlc-demo) is Running.");
+    const waiting = await call(client, "bob_sdlc", { threadId: DEMO_THREADS.waiting });
+    expect(waiting.content[0]?.text).toContain("1 question(s) wait for an answer in Bob.");
+  });
+
+  it("says when no SDLC item runs the thread, and shows the fleet without one", async () => {
+    const { client } = await connectedClient();
+    const none = await call<{ item: unknown }>(client, "bob_sdlc", { threadId: DEMO_THREADS.none });
+    expect(none.structuredContent?.item).toBeNull();
+    expect(none.content[0]?.text).toBe("No Bob SDLC item is running this thread.");
+    const fleet = await call<{ scope: string; totalItems: number; attention: unknown[] }>(client, "bob_sdlc");
+    expect(fleet.structuredContent).toMatchObject({ scope: "fleet", totalItems: 4, refreshSeconds: 15 });
+    expect(fleet.content[0]?.text).toContain("1 need attention");
+  });
+
+  it("returns the raw SDLC item for agents", async () => {
+    const { client } = await connectedClient();
+    const found = await call<{ item: { itemId: string; execution: { thread: { threadId: string } } }; plan: { planId: string } }>(client, "bob_sdlc_item_for_thread", { threadId: DEMO_THREADS.waiting });
+    expect(found.structuredContent).toMatchObject({ item: { itemId: "item-b", execution: { thread: { threadId: DEMO_THREADS.waiting } } }, plan: { planId: "plan-sdlc-demo" } });
+    expect(JSON.parse(found.content[0]!.text!)).toMatchObject({ itemId: "item-b", state: "waiting-input" });
+    const missing = await call<{ item: unknown }>(client, "bob_sdlc_item_for_thread", { threadId: "nope" });
+    expect(missing.structuredContent?.item).toBeNull();
+  });
+
+  it("reports edge problems without failing the view, and needs a token for the edge", async () => {
+    const offline = await connectedClient({ sdlcEdge: fakeSdlcEdge({ connected: false }) });
+    const result = await call<{ connection: string; error: string; item: unknown }>(offline.client, "bob_sdlc", { threadId: DEMO_THREADS.running });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ connection: "reconnecting", error: "The SDLC edge refused the socket.", item: null });
+    const noToken = await connectedClient({ sdlcEdge: null });
+    const failed = await call(noToken.client, "bob_sdlc");
+    expect(failed.isError).toBe(true);
+    expect(failed.content[0]?.text).toContain("BOB_API_TOKEN");
   });
 });

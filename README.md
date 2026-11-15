@@ -12,7 +12,8 @@ It's a stdio server on the official MCP TypeScript SDK v2 (`@modelcontextprotoco
 - `bob_planning_review` shows a work item's stages, run evidence and next action, and renders `ui://bob/planning-review.html`.
 - `bob_planning_approve` records human approval. Only the view can call it (`_meta.ui.visibility: ["app"]`).
 - `bob_planning_dispatch` dispatches through Bob once that work item is approved.
-- `bob_work_item_get`, `bob_runs_list` and `bob_linear_links` are agent tools with no UI.
+- `bob_sdlc` (T3CODE-113) reads Bob's SDLC edge (`wss://<BOB_API_URL host>/api/sdlc/ws`, `Authorization: Bearer $BOB_API_TOKEN`, no Origin) and renders `ui://bob/sdlc.html`. With `threadId` it shows the SDLC item whose `execution.thread.threadId` is that thread: plan, state, milestones, pending questions (read-only; answer in Bob), live tail and CI. Without, it shows the fleet. The token must be a `bob_` key with write permission whose user is on the edge's viewer allow-list. Each plugin process opens the socket on its first `bob_sdlc` call. The protocol types and reducer are vendored in `src/sdlc/protocol.ts` and must stay in sync with Bob's `@bob/sdlc-view`.
+- `bob_work_item_get`, `bob_runs_list`, `bob_sdlc_item_for_thread` and `bob_linear_links` are agent tools with no UI.
 
 The plugin calls Bob's REST API (`/api/v1`, Bearer API key) directly. Bob's own `mcp-server` package is still a stub.
 
@@ -38,10 +39,12 @@ bun run dev:fake-bob           # in-memory Bob API on :4319
 BOB_API_URL=http://localhost:4319 BOB_WORKSPACE_ID=00000000-0000-4000-8000-000000000001 \
   bun run dev:host             # T3-style MCP Apps host on http://localhost:4320/?tool=bob_workspace
 bun run inspect                # or the official MCP Inspector (Apps tab)
+# SDLC view offline: fake-bob also serves a fake edge; add BOB_API_TOKEN=bob_fake and open
+#   /?tool=bob_sdlc   or   /?tool=bob_sdlc&args={"threadId":"thread-demo-running"}
 ```
 
 Install this directory through T3’s plugin installer after running `bun install --frozen-lockfile`. Configure the Bob endpoint, token and workspace on the connected server. Web, desktop and mobile can open its panels; mobile uses the server installation.
 
-The `bob-workspace` panel is project-scoped. `bob-runs` is thread-scoped: it uses `hostContext.t3.threadId` and follows `host-context-changed`.
+The `bob-workspace` panel is project-scoped. `bob-runs` is thread-scoped: it uses `hostContext.t3.threadId` and follows `host-context-changed`. `bob-sdlc` (thread) and `bob-sdlc-fleet` (project) share `ui://bob/sdlc.html`, which picks the thread or fleet view the same way.
 
 See `docs/manifest-v2.md` for the manifest mapping, the server rules from the design, and the open questions.

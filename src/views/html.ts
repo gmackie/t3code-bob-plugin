@@ -1,8 +1,10 @@
 import { STYLES } from "./render.ts";
+import { SDLC_STYLES } from "./sdlc.render.ts";
 
 export const VIEWS = {
   workspace: { uri: "ui://bob/workspace.html", entry: "workspace.client.ts", title: "Bob workspace" },
   planning: { uri: "ui://bob/planning-review.html", entry: "planning.client.ts", title: "Bob planning review" },
+  sdlc: { uri: "ui://bob/sdlc.html", entry: "sdlc.client.ts", title: "Bob SDLC" },
 } as const;
 
 export type ViewName = keyof typeof VIEWS;
@@ -37,7 +39,7 @@ async function build(name: ViewName): Promise<string> {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${view.title}</title>
-<style>${STYLES}</style>
+<style>${STYLES}${SDLC_STYLES}</style>
 </head>
 <body>
 <main id="app" aria-live="polite">Loading…</main>

@@ -29,7 +29,7 @@ export function esc(value: unknown): string {
 
 const time = (iso?: string) => (iso ? new Date(iso).toLocaleString() : "");
 
-function pill(label: string, tone: string): string {
+export function pill(label: string, tone: string): string {
   return `<span class="pill pill-${esc(tone)}">${esc(label)}</span>`;
 }
 

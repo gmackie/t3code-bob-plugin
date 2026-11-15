@@ -11,6 +11,7 @@
 - `contributes.panels[]`, both rendering `ui://bob/workspace.html`:
   - `bob-workspace` (`scope: project`) is Bob planning: work items, runs, and an inline planning review.
   - `bob-runs` (`scope: thread`) uses the same view. With `hostContext.t3.threadId`, it lists only that thread's Bob runs and refreshes on `host-context-changed`.
+- `bob-sdlc` (`scope: thread`) and `bob-sdlc-fleet` (`scope: project`) both render `ui://bob/sdlc.html` (T3CODE-113): the SDLC item running the thread from `hostContext.t3.threadId`, or the fleet when there is no thread.
 - `contributes.commands[]` open those panels.
 - `t3Tools` is `[]`, because Bob never calls back into T3 (see below).
 
