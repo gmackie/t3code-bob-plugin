@@ -50,4 +50,14 @@ describe("view renderers", () => {
     expect(verify).not.toContain('class="actions"');
     expect(verify).toContain("step-failed");
   });
+
+  it("shows completed execution and unknown approval without a dispatch button", () => {
+    const done = { ...item, status: { id: "done", label: "done", category: "done" as const } };
+    const runs = [{ providerId: "bob", id: "r1", status: "succeeded" as const, workItemId: done.id }];
+    const html = renderPlanning({ workItem: done, runs, workflow: buildPlanningWorkflow(done, runs) });
+    expect(html).not.toContain('data-action="approve"');
+    expect(html).not.toContain('data-action="execute"');
+    expect(html).toContain("unknown");
+    expect(html).toContain("succeeded");
+  });
 });

@@ -19,28 +19,44 @@ export type PlanningWorkflowModel = {
   readonly actions?: readonly { id: string; title: string; tone?: "primary" | "secondary" | "destructive" }[];
 };
 
-export function buildPlanningWorkflow(item: WorkItem, runs: readonly RunSummary[], state: { readonly approved?: boolean; readonly dispatchRequested?: boolean } = {}): PlanningWorkflowModel {
+type PlanningState = { readonly approved?: boolean; readonly dispatchRequested?: boolean };
+
+// An existing run is evidence of execution, never evidence of human approval.
+// This review authorizes a first dispatch; retries need a separately reviewed plan.
+export function planningDispatchBlocker(item: WorkItem, runs: readonly RunSummary[], state: PlanningState = {}): string | undefined {
+  if (item.status.category === "done" || item.status.category === "cancelled") return `Bob work item is ${item.status.label}; dispatch is unavailable`;
+  if (runs.length) return "Bob work item already has run evidence; review the existing run before planning another attempt";
+  if (state.dispatchRequested) return "Bob dispatch was already requested; refresh the existing run evidence";
+}
+
+export function buildPlanningWorkflow(item: WorkItem, runs: readonly RunSummary[], state: PlanningState = {}): PlanningWorkflowModel {
   const latestRun = runs[0];
   const failed = latestRun?.status === "failed";
+  const blocker = planningDispatchBlocker(item, runs, state);
+  const dispatched = Boolean(latestRun || state.dispatchRequested);
+  const approvalDetail = blocker && !state.approved ? "Prior authorization is unknown; no approval is recorded in this plugin." : undefined;
   const steps = [
     { id: "inspect", stage: "inspect" as const, title: "Inspect Bob work item", state: "completed" as const, detail: item.title },
     { id: "context", stage: "context" as const, title: "Collect planning and run context", state: "completed" as const, detail: `${runs.length} associated runs` },
     { id: "propose", stage: "propose" as const, title: "Propose execution target", state: "completed" as const },
-    { id: "review", stage: "review" as const, title: "Review dispatch plan", state: state.approved ? "completed" as const : "active" as const },
-    { id: "approve", stage: "approve" as const, title: "Approve Bob dispatch", state: state.approved ? "completed" as const : "pending" as const },
-    { id: "execute", stage: "execute" as const, title: "Dispatch work item", state: state.dispatchRequested ? "completed" as const : state.approved ? "active" as const : "pending" as const },
-    { id: "verify", stage: "verify" as const, title: "Verify Bob run", state: state.dispatchRequested ? latestRun?.status === "succeeded" ? "completed" as const : failed ? "failed" as const : "active" as const : "pending" as const, detail: latestRun ? `Latest run ${latestRun.id}: ${latestRun.status}` : "Waiting for dispatch" },
+    { id: "review", stage: "review" as const, title: "Review dispatch plan", state: state.approved ? "completed" as const : blocker ? "blocked" as const : "active" as const },
+    { id: "approve", stage: "approve" as const, title: "Approve Bob dispatch", state: state.approved ? "completed" as const : blocker ? "blocked" as const : "pending" as const, ...(approvalDetail ? { detail: approvalDetail } : {}) },
+    { id: "execute", stage: "execute" as const, title: "Dispatch work item", state: dispatched ? "completed" as const : blocker ? "blocked" as const : state.approved ? "active" as const : "pending" as const },
+    { id: "verify", stage: "verify" as const, title: "Verify Bob run", state: latestRun?.status === "succeeded" ? "completed" as const : failed ? "failed" as const : latestRun?.status === "cancelled" ? "blocked" as const : dispatched ? "active" as const : blocker ? "blocked" as const : "pending" as const, detail: latestRun ? `Latest run ${latestRun.id}: ${latestRun.status}` : blocker ?? "Waiting for dispatch" },
     { id: "respond", stage: "respond" as const, title: "Prepare work-item response", state: "pending" as const },
   ];
   return {
     pluginId: "com.t3code.bob",
     workflowId: "bob.planning-review",
     title: "Planning review",
-    currentStage: state.dispatchRequested ? "verify" : state.approved ? "execute" : "review",
+    currentStage: blocker ? "verify" : state.approved ? "execute" : "review",
     refreshedAt: new Date().toISOString(),
     steps,
-    evidence: [{ id: "bob-run", title: "Bob run state", kind: "check", status: failed ? "negative" : latestRun?.status === "succeeded" ? "positive" : "neutral", detail: latestRun ? `${latestRun.id} · ${latestRun.status}` : "No run dispatched yet" }],
-    actions: state.dispatchRequested ? [] : state.approved ? [{ id: "execute", title: "Dispatch work item", tone: "primary" }] : [{ id: "approve", title: "Approve Bob dispatch", tone: "primary" }],
+    evidence: [
+      { id: "bob-run", title: "Bob run state", kind: "check", status: failed ? "negative" : latestRun?.status === "succeeded" ? "positive" : "neutral", detail: latestRun ? `${latestRun.id} · ${latestRun.status}` : "No run evidence available" },
+      ...(approvalDetail ? [{ id: "bob-approval", title: "Dispatch authorization", kind: "check" as const, status: "warning" as const, detail: approvalDetail }] : []),
+    ],
+    actions: blocker ? [] : state.approved ? [{ id: "execute", title: "Dispatch work item", tone: "primary" }] : [{ id: "approve", title: "Approve Bob dispatch", tone: "primary" }],
   };
 }
 

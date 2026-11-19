@@ -17,6 +17,8 @@ It's a stdio server on the official MCP TypeScript SDK v2 (`@modelcontextprotoco
 
 The plugin calls Bob's REST API (`/api/v1`, Bearer API key) directly. Bob's own `mcp-server` package is still a stub.
 
+Planning review uses observed Bob runs even when another coordinator dispatched them. A completed or cancelled item, any existing run, or a recorded dispatch request disables approval and dispatch in this review, including stale tool calls. Missing local approval is shown as unknown authorization; a successful run does not establish prior approval or product acceptance. Plan a necessary retry separately in Bob. Terminal run evidence stops automatic planning refresh; the Refresh button remains available.
+
 ### Configuration
 
 | Env var | Old setting | Notes |
