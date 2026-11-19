@@ -4,7 +4,9 @@ import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { tmpdir } from "node:os";
 
 import { DEMO_THREADS } from "./sdlc/fixtures.ts";
-import { connectedClient, fakeBob, fakeSdlcEdge } from "./testing.ts";
+import { connectedClient, fakeBob, fakeSdlcEdge, memoryState } from "./testing.ts";
+import { planningWorkflowId, type BobServerOptions } from "./server.ts";
+import type { PlanningData } from "./views/render.ts";
 
 type Structured<T> = { structuredContent?: T; isError?: boolean; content: { type: string; text?: string }[] };
 const call = async <T = Record<string, unknown>>(client: Awaited<ReturnType<typeof connectedClient>>["client"], name: string, args: Record<string, unknown> = {}) =>
@@ -111,6 +113,53 @@ describe("Bob MCP server", () => {
     expect(done.isError).toBeFalsy();
     expect(dispatched).toEqual([{ workItemId: "w1", agentType: "codex" }]);
     expect(done.structuredContent).toMatchObject({ workflow: { currentStage: "verify" }, dispatched: { id: "s1" }, runs: [{ status: "running" }] });
+  });
+
+  it("reviews already completed work without offering or recording retroactive approval", async () => {
+    const state: BobServerOptions["state"] = memoryState();
+    const bob = fakeBob({
+      getWorkItem: async () => ({ id: "w1", title: "Security fix", status: "done" }),
+      listRuns: async () => [{ id: "r1", workItemId: "w1", status: "completed" }],
+    });
+    const { client } = await connectedClient({ client: bob.client, state });
+    const review = await call<PlanningData>(client, "bob_planning_review", { workItemId: "w1" });
+    expect(review.isError).toBeFalsy();
+    expect(review.structuredContent?.workflow).toMatchObject({ currentStage: "verify", actions: [] });
+    expect(review.structuredContent?.workflow.steps.find((step) => step.stage === "approve")).toMatchObject({ state: "blocked" });
+    expect((await call(client, "bob_planning_approve", { workItemId: "w1" })).isError).toBe(true);
+    expect(await state.getWorkflowState(planningWorkflowId("w1"))).toEqual({ approved: false, dispatchRequested: false });
+    expect(bob.dispatched).toEqual([]);
+  });
+
+  it.each(["done", "cancelled"])("refuses stale approval and dispatch for a %s item with no runs", async (status) => {
+    const bob = fakeBob({ getWorkItem: async () => ({ id: "w1", title: "Ship", status }) });
+    const state: BobServerOptions["state"] = memoryState();
+    const { client } = await connectedClient({ client: bob.client, state });
+    expect((await call(client, "bob_planning_approve", { workItemId: "w1" })).isError).toBe(true);
+    await state.saveWorkflowState(planningWorkflowId("w1"), { approved: true, dispatchRequested: false });
+    expect((await call(client, "bob_planning_dispatch", { workItemId: "w1" })).isError).toBe(true);
+    expect(bob.dispatched).toEqual([]);
+  });
+
+  it.each(["pending", "running", "completed", "failed", "cancelled"])("rechecks observed %s runs before accepting a stale dispatch", async (status) => {
+    let observed = false;
+    const bob = fakeBob({ listRuns: async () => observed ? [{ id: "r1", workItemId: "w1", status }] : [] });
+    const state: BobServerOptions["state"] = memoryState();
+    const { client } = await connectedClient({ client: bob.client, state });
+    expect((await call(client, "bob_planning_approve", { workItemId: "w1" })).isError).toBeFalsy();
+    observed = true;
+    expect((await call(client, "bob_planning_dispatch", { workItemId: "w1" })).isError).toBe(true);
+    expect(bob.dispatched).toEqual([]);
+    expect(await state.getWorkflowState(planningWorkflowId("w1"))).toEqual({ approved: true, dispatchRequested: false });
+  });
+
+  it("refuses a repeated dispatch even while Bob's run list is still empty", async () => {
+    const bob = fakeBob({ listRuns: async () => [] });
+    const { client } = await connectedClient({ client: bob.client });
+    await call(client, "bob_planning_approve", { workItemId: "w1" });
+    expect((await call(client, "bob_planning_dispatch", { workItemId: "w1" })).isError).toBeFalsy();
+    expect((await call(client, "bob_planning_dispatch", { workItemId: "w1" })).isError).toBe(true);
+    expect(bob.dispatched).toEqual([{ workItemId: "w1" }]);
   });
 
   it("keeps Bob-owned Linear links", async () => {

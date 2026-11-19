@@ -5,12 +5,12 @@ import { z } from "zod";
 import { reconcileBobLinearLink } from "./links.ts";
 import type { SdlcEdgeSource } from "./sdlc/edgeClient.ts";
 import { edgeStatus, fleet, itemForThread, threadItem, type SdlcData } from "./sdlc/model.ts";
-import { buildPlanningWorkflow, createBobWorkSource, type BobPlanningClient } from "./planning.ts";
+import { buildPlanningWorkflow, createBobWorkSource, planningDispatchBlocker, type BobPlanningClient } from "./planning.ts";
 import type { BobStateStore } from "./state.ts";
 import { VIEWS, viewHtml, type ViewName } from "./views/html.ts";
 import type { PlanningData, WorkspaceData } from "./views/render.ts";
 
-export const SERVER_INFO = { name: "bob", version: "0.2.1" } as const;
+export const SERVER_INFO = { name: "bob", version: "0.2.2" } as const;
 
 export type BobServerOptions = {
   client: BobPlanningClient;
@@ -48,6 +48,14 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
     const source = createBobWorkSource(options.client, workspace());
     const [detail, runs, state] = await Promise.all([source.get(id), source.runs(id), options.state.getWorkflowState(planningWorkflowId(id))]);
     return { workItem: detail.item, runs, workflow: buildPlanningWorkflow(detail.item, runs, state) };
+  }
+
+  async function dispatchState(id: string) {
+    const source = createBobWorkSource(options.client, workspace());
+    const [detail, runs, state] = await Promise.all([source.get(id), source.runs(id), options.state.getWorkflowState(planningWorkflowId(id))]);
+    const blocker = planningDispatchBlocker(detail.item, runs, state);
+    if (blocker) throw new Error(blocker);
+    return state;
   }
 
   for (const [name, view] of Object.entries(VIEWS) as [ViewName, (typeof VIEWS)[ViewName]][]) {
@@ -176,7 +184,7 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
     },
     async ({ workItemId: id }) =>
       result(async () => {
-        const state = await options.state.getWorkflowState(planningWorkflowId(id));
+        const state = await dispatchState(id);
         await options.state.saveWorkflowState(planningWorkflowId(id), { ...state, approved: true });
         return { data: { workItemId: id, approved: true }, text: `Bob dispatch approved for ${id}.` };
       }),
@@ -194,7 +202,7 @@ export function createBobMcpServer(options: BobServerOptions): McpServer {
     },
     async ({ workItemId: id, agentType }) =>
       result(async () => {
-        const state = await options.state.getWorkflowState(planningWorkflowId(id));
+        const state = await dispatchState(id);
         if (!state.approved) throw new Error("Bob dispatch must be approved in the planning review before execution");
         const run = await createBobWorkSource(options.client, workspace()).dispatch({ workItemId: id, ...(agentType ? { agentType } : {}) });
         await options.state.saveWorkflowState(planningWorkflowId(id), { approved: true, dispatchRequested: true });

@@ -30,8 +30,8 @@ export function mountPlanning(bridge: ViewBridge, root: HTMLElement, pollSeconds
   };
   const schedule = () => {
     clearTimeout(timer);
-    // Keep polling while a dispatched run is being verified.
-    if (data?.workflow.currentStage === "verify") timer = setTimeout(() => void refresh(), pollSeconds * 1000);
+    // Terminal run evidence needs no background polling; Refresh remains available.
+    if (data?.workflow.steps.some((step) => step.stage === "verify" && step.state === "active")) timer = setTimeout(() => void refresh(), pollSeconds * 1000);
   };
   const run = async (task: () => Promise<void>) => {
     busy = true;
