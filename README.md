@@ -1,52 +1,24 @@
 # T3 Code Bob plugin
 
-Bob is a standalone T3 Code plugin. It owns Bob credentials, planning normalization, dispatch approval state, Bob-to-Linear links, and its own persistence.
+Bob planning, runs and SDLC for T3 Code.
 
-The plugin is an MCP server (`src/mcp.ts`, stdio) described by a v2 manifest (`t3-plugin.json`) that follows the T3CODE-74 design approved on 2026-10-31. The managed-app runtime and plugin RPC were removed in T3CODE-78; T3 builds that only load v1 manifests cannot load this version.
+## Plugin (manifest v2)
 
-## MCP server
+The plugin is the manifest `t3-plugin.json` plus Bob's **hosted** MCP server, `https://bob.blder.bot/mcp`. It has no local process.
 
-It's a stdio server on the official MCP TypeScript SDK v2 (`@modelcontextprotocol/server`). Views are MCP Apps: `ui://` HTML resources with the `text/html;profile=mcp-app` MIME type.
+- **Auth:** OAuth (`bob:read`, `bob:write`). T3 does discovery, registration, PKCE and refresh. During consent you choose one Bob workspace; every tool is limited to it. No token is stored in the manifest.
+- **Tools:** projects and work items (`bob_list_projects`, `bob_get_work_item`, `bob_update_work_item`, `bob_add_comment`, ...), runs (`bob_runs_list`), the planning review (`bob_workspace`, `bob_planning_review`, `bob_planning_dispatch`) and `bob_sdlc`.
+- **Panels:**
+  - `bob-workspace` (project) and `bob-runs` (thread) render `ui://bob/workspace.html`: work items, recent runs and an inline planning review.
+  - `bob-sdlc` (thread) and `bob-sdlc-fleet` (project) render `ui://bob/sdlc.html`: the SDLC item running the thread, or the fleet. The view opens Bob's SDLC edge socket itself, with a single-use ticket; your Bob user must be an SDLC viewer.
+- **Dispatch:** a person approves a work item in the planning review before `bob_planning_dispatch` runs it, once per approval. Dispatch also needs API execution dispatch enabled on the Bob server.
 
-- `bob_workspace` lists work items and recent runs and renders `ui://bob/workspace.html`. The view refreshes every `BOB_POLL_SECONDS`, and it can open a work item's planning review inline.
-- `bob_planning_review` shows a work item's stages, run evidence and next action, and renders `ui://bob/planning-review.html`.
-- `bob_planning_approve` records human approval. Only the view can call it (`_meta.ui.visibility: ["app"]`).
-- `bob_planning_dispatch` dispatches through Bob once that work item is approved.
-- `bob_sdlc` (T3CODE-113) reads Bob's SDLC edge (`wss://<BOB_API_URL host>/api/sdlc/ws`, `Authorization: Bearer $BOB_API_TOKEN`, no Origin) and renders `ui://bob/sdlc.html`. With `threadId` it shows the SDLC item whose `execution.thread.threadId` is that thread: plan, state, milestones, pending questions (read-only; answer in Bob), live tail and CI. Without, it shows the fleet. The token must be a `bob_` key with write permission whose user is on the edge's viewer allow-list. Each plugin process opens the socket on its first `bob_sdlc` call. The protocol types and reducer are vendored in `src/sdlc/protocol.ts` and must stay in sync with Bob's `@bob/sdlc-view`.
-- `bob_work_item_get`, `bob_runs_list`, `bob_sdlc_item_for_thread` and `bob_linear_links` are agent tools with no UI.
+Install from Settings → Plugins → MCP plugins with this repository's directory. Upgrading from 0.2.x replaces the local stdio server and drops its stored Bob and Linear tokens. Approvals recorded by 0.2.x lived in a local file and do not carry over.
 
-The plugin calls Bob's REST API (`/api/v1`, Bearer API key) directly. Bob's own `mcp-server` package is still a stub.
-
-Planning review uses observed Bob runs even when another coordinator dispatched them. A completed or cancelled item, any existing run, or a recorded dispatch request disables approval and dispatch in this review, including stale tool calls. Missing local approval is shown as unknown authorization; a successful run does not establish prior approval or product acceptance. Plan a necessary retry separately in Bob. Terminal run evidence stops automatic planning refresh; the Refresh button remains available.
-
-### Configuration
-
-| Env var | Old setting | Notes |
-|---|---|---|
-| `BOB_API_URL` | `bob.api-endpoint` | required |
-| `BOB_API_TOKEN` | `bob.api-token` | secret |
-| `BOB_WORKSPACE_ID` | (new) | default workspace for tools |
-| `LINEAR_API_URL` | `bob.linear-endpoint` | default `https://api.linear.app/graphql` |
-| `LINEAR_API_TOKEN` | `bob.linear-token` | secret |
-| `LINEAR_WORKSPACE` | `bob.linear-workspace` | |
-| `BOB_POLL_SECONDS` | `bob.polling-seconds` | 15–3600, default 60 |
-| `BOB_PLUGIN_STATE_PATH` | (new) | SQLite state, default `$XDG_STATE_HOME/t3code-bob-plugin/state.sqlite`. Every plugin process shares it; the server keeps no state in memory. |
-
-### Run it
+## Tests
 
 ```sh
 bun install
-bun test                       # unit, MCP client, AppBridge interop and DOM view tests
-bun run dev:fake-bob           # in-memory Bob API on :4319
-BOB_API_URL=http://localhost:4319 BOB_WORKSPACE_ID=00000000-0000-4000-8000-000000000001 \
-  bun run dev:host             # T3-style MCP Apps host on http://localhost:4320/?tool=bob_workspace
-bun run inspect                # or the official MCP Inspector (Apps tab)
-# SDLC view offline: fake-bob also serves a fake edge; add BOB_API_TOKEN=bob_fake and open
-#   /?tool=bob_sdlc   or   /?tool=bob_sdlc&args={"threadId":"thread-demo-running"}
+bun test                              # manifest
+BOB_MCP_TOKEN=<access token> bun test # + live check of every panel's view
 ```
-
-Install this directory through T3’s plugin installer after running `bun install --frozen-lockfile`. Configure the Bob endpoint, token and workspace on the connected server. Web, desktop and mobile can open its panels; mobile uses the server installation.
-
-The `bob-workspace` panel is project-scoped. `bob-runs` is thread-scoped: it uses `hostContext.t3.threadId` and follows `host-context-changed`. `bob-sdlc` (thread) and `bob-sdlc-fleet` (project) share `ui://bob/sdlc.html`, which picks the thread or fleet view the same way.
-
-See `docs/manifest-v2.md` for the manifest mapping, the server rules from the design, and the open questions.

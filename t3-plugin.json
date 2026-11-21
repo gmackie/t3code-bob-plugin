@@ -2,60 +2,21 @@
   "schemaVersion": 2,
   "id": "com.t3code.bob",
   "displayName": "Bob",
-  "version": "0.2.2",
+  "version": "0.3.0",
+  "description": "Bob planning, runs and SDLC for agents and panels, on Bob's hosted MCP server.",
   "mcpServer": {
     "name": "bob",
     "transport": {
-      "type": "stdio",
-      "command": "bun",
-      "args": [
-        "${pluginRoot}/src/mcp.ts"
-      ],
-      "env": [
-        {
-          "name": "BOB_API_URL",
-          "value": "",
-          "title": "Bob API endpoint"
-        },
-        {
-          "name": "BOB_API_TOKEN",
-          "value": "",
-          "sensitive": true,
-          "title": "Bob API token"
-        },
-        {
-          "name": "BOB_WORKSPACE_ID",
-          "value": "",
-          "title": "Bob workspace id"
-        },
-        {
-          "name": "LINEAR_API_URL",
-          "value": "https://api.linear.app/graphql",
-          "title": "Linear-compatible endpoint"
-        },
-        {
-          "name": "LINEAR_API_TOKEN",
-          "value": "",
-          "sensitive": true,
-          "title": "Linear-compatible API token"
-        },
-        {
-          "name": "LINEAR_WORKSPACE",
-          "value": "",
-          "title": "Linear-compatible workspace"
-        },
-        {
-          "name": "BOB_POLL_SECONDS",
-          "value": "60",
-          "title": "Refresh interval in seconds (15-3600)"
-        },
-        {
-          "name": "BOB_PLUGIN_STATE_PATH",
-          "value": "",
-          "title": "Shared Bob state file",
-          "description": "Optional absolute SQLite path, shared by the server and agent copies."
-        }
-      ]
+      "type": "http",
+      "url": "https://bob.blder.bot/mcp",
+      "headers": [],
+      "auth": {
+        "type": "oauth",
+        "scopes": [
+          "bob:read",
+          "bob:write"
+        ]
+      }
     }
   },
   "contributes": {
