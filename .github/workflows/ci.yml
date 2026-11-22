@@ -1,4 +1,4 @@
-name: Bob MCP plugin
+name: Bob plugin
 
 on:
   pull_request:
