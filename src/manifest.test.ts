@@ -10,12 +10,12 @@ describe("v2 manifest", () => {
     expect(validateManifestV2(manifest)).toEqual([]);
   });
 
-  it("reaches hosted Bob over OAuth, with no stored token and no T3 callbacks", () => {
+  it("requests read access to hosted Bob by default", () => {
     expect(manifest.mcpServer.transport).toEqual({
       type: "http",
       url: "https://bob.blder.bot/mcp",
       headers: [],
-      auth: { type: "oauth", scopes: ["bob:read", "bob:write"] },
+      auth: { type: "oauth", scopes: ["bob:read"] },
     });
     expect(manifest.t3Tools).toEqual([]);
   });

@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "com.t3code.bob",
   "displayName": "Bob",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Bob planning, runs and SDLC for agents and panels, on Bob's hosted MCP server.",
   "mcpServer": {
     "name": "bob",
@@ -13,8 +13,7 @@
       "auth": {
         "type": "oauth",
         "scopes": [
-          "bob:read",
-          "bob:write"
+          "bob:read"
         ]
       }
     }
